@@ -1,10 +1,10 @@
-# SOPM Kubernetes/gVisor Isolation
+# PyFaaS Kubernetes/gVisor Isolation
 
 Phase 2 is the production-style sandbox path. Docker Compose keeps `SANDBOX_ENABLED=false` for fast local development only; that mode runs user code inside the worker container and is not a security boundary.
 
 ## Required cluster state
 
-A Kubernetes cluster must have gVisor/runsc installed on every node that can run sandbox pods. SOPM expects this RuntimeClass:
+A Kubernetes cluster must have gVisor/runsc installed on every node that can run sandbox pods. PyFaaS expects this RuntimeClass:
 
 ```powershell
 kubectl apply -f k8s/base/runtimeclass-gvisor.yaml

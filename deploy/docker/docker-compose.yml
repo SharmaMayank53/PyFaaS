@@ -1,5 +1,5 @@
 # =============================================================================
-# SOPM - Local Development Stack
+# PyFaaS - Local Development Stack
 #
 # Usage:
 #   docker compose up -d         # Start all services

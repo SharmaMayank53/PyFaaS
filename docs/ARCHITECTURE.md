@@ -1,8 +1,8 @@
-# SOPM Architecture
+# PyFaaS Architecture
 
 ## Design Philosophy
 
-SOPM is built on three guiding principles:
+PyFaaS is built on three guiding principles:
 
 1. **Small surface area** — fewer components means fewer failure modes and less operational burden.
 2. **Standard technology** — PostgreSQL, Redis, MinIO, Kubernetes. No proprietary systems.

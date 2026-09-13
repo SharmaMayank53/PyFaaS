@@ -1,8 +1,8 @@
-# SOPM Security
+# PyFaaS Security
 
 ## Threat Model
 
-SOPM executes **untrusted user code**. This is the highest-risk aspect of the platform. The threat model assumes:
+PyFaaS executes **untrusted user code**. This is the highest-risk aspect of the platform. The threat model assumes:
 
 - Users may intentionally try to escape the sandbox
 - Users may try to access other users' data
@@ -20,7 +20,7 @@ Every API request is validated with strict Pydantic v2 schemas. Invalid data is 
 
 ### Layer 2: AST-Based Code Validation
 
-Before storing a function version, SOPM parses every `.py` file with Python's `ast` module and rejects:
+Before storing a function version, PyFaaS parses every `.py` file with Python's `ast` module and rejects:
 
 **Forbidden calls:**
 - `eval()`, `exec()`, `compile()`

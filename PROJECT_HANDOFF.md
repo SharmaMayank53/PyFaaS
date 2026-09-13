@@ -1,6 +1,6 @@
-# SOPM Project Handoff
+# PyFaaS Project Handoff
 
-This document is a technical handoff for SOPM: a self-hosted Python function execution platform with a FastAPI backend, worker and scheduler services, PostgreSQL persistence, Redis queueing, MinIO artifact storage, Docker Compose infrastructure, and a Next.js dashboard.
+This document is a technical handoff for PyFaaS: a self-hosted Python function execution platform with a FastAPI backend, worker and scheduler services, PostgreSQL persistence, Redis queueing, MinIO artifact storage, Docker Compose infrastructure, and a Next.js dashboard.
 
 The goal of this handoff is to help a new engineer understand how the project is structured, how data moves through the system, where the important code lives, and what has recently changed. It is not meant to replace the README or deployment documentation.
 
@@ -12,7 +12,7 @@ C:\sopm
 
 ## 1. Product Summary
 
-SOPM lets an authenticated user:
+PyFaaS lets an authenticated user:
 
 - Register and log in.
 - Create function records.
@@ -1160,7 +1160,7 @@ Local Docker mode with `SANDBOX_ENABLED=false` runs uploaded code in the worker 
 
 ## 26. Design Direction / North Star
 
-SOPM is moving toward this control-plane / execution-plane split:
+PyFaaS is moving toward this control-plane / execution-plane split:
 
 - FastAPI API: control plane and source-of-truth operations.
 - PostgreSQL: durable metadata and results.
@@ -1484,7 +1484,7 @@ Remaining Phase 3 hardening ideas:
 - Add a first-class DLQ/operator page if Redis dead-letter operations become part of normal operations.
 ## 33. Latest Phase 4 State
 
-Phase 4 adds ephemeral raw-code execution and an agent-facing MCP server. The goal is to let an agent run one-off Python code without creating a persistent `Function` or uploading a ZIP, while still reusing SOPM's normal execution observability pipeline.
+Phase 4 adds ephemeral raw-code execution and an agent-facing MCP server. The goal is to let an agent run one-off Python code without creating a persistent `Function` or uploading a ZIP, while still reusing PyFaaS's normal execution observability pipeline.
 
 Key Phase 4 backend files:
 
@@ -1668,7 +1668,7 @@ Network egress investigation from August 18, 2026:
 - Python HTTPS from inside `docker-worker-1` can reach the internet; `https://example.com` returned HTTP 200 with HTML.
 - Running `sandbox.runner` inside the worker container also reached `https://example.com` and returned a successful `SOPM_RESULT`.
 - `https://httpbin.org/uuid` timed out from the worker during testing.
-- Conclusion: SOPM local runner networking is not the blocking layer. The observed `Expecting value: line 1 column 1 (char 0)` error is consistent with user code calling `.json()` on an empty/non-JSON response or an unreliable external endpoint response.
+- Conclusion: PyFaaS local runner networking is not the blocking layer. The observed `Expecting value: line 1 column 1 (char 0)` error is consistent with user code calling `.json()` on an empty/non-JSON response or an unreliable external endpoint response.
 
 ## 35. Optimization Pass - September 13, 2026
 
@@ -1888,3 +1888,48 @@ Manual visual verification after restarting the correct dashboard on `3000`:
 4. Open `/functions` and confirm the health column shows `Unknown`, `Healthy`, `Degraded`, or `Failing` labels instead of five bars.
 5. Open a tall page such as `/executions`, scroll the main content, and confirm the desktop sidebar, Live status, username, and logout remain visible.
 6. Resize to mobile width and confirm the top mobile nav is usable without horizontal page overflow.
+
+## 38. PyFaaS Rebrand - September 13, 2026
+
+The product-facing brand was changed from SOPM to PyFaaS.
+
+Updated surfaces:
+
+```text
+README.md
+PROJECT_HANDOFF.md
+docs/*.md
+mcp/README.md
+api/main.py
+pyproject.toml
+.env.example
+deploy/docker/*.Dockerfile comments
+deploy/docker/docker-compose.yml comments
+k8s/monitoring/alerts.yml alert names/summaries
+sopm-dashboard/package.json
+sopm-dashboard/package-lock.json
+sopm-dashboard/src/app/layout.tsx
+sopm-dashboard/src/components/layout/Sidebar.tsx
+sopm-dashboard/src/app/login/page.tsx
+sopm-dashboard/src/app/register/page.tsx
+sopm-dashboard/src/app/schedules/page.tsx
+```
+
+Compatibility identifiers intentionally preserved:
+
+```text
+SOPM_RESULT
+SOPM_* environment variables
+X-SOPM-Key
+sopm_* API key prefix
+sopm: Redis key prefixes
+sopm-artifacts / sopm-packages buckets
+sopm-dashboard folder name
+sopm_mcp Python package name
+existing Kubernetes namespaces/service names/image examples unless changing only comments or alert display text
+```
+
+Rationale:
+
+- The dashboard, README, docs, API title, package metadata, and monitoring alert display names now use PyFaaS.
+- Runtime contracts were not renamed during this pass to avoid breaking existing tokens, queues, buckets, tests, scripts, Kubernetes manifests, and MCP clients.

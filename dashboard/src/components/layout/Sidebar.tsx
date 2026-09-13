@@ -44,7 +44,7 @@ export function Sidebar() {
           <div className="flex h-6 w-6 items-center justify-center rounded bg-accent">
             <Activity size={13} className="text-white" />
           </div>
-          <span className="font-mono text-sm font-bold tracking-tight text-text-primary">SOPM</span>
+          <span className="font-mono text-sm font-bold tracking-tight text-text-primary">PyFaaS</span>
         </div>
 
         <nav className="space-y-0.5 px-2 py-3">
@@ -87,7 +87,7 @@ export function Sidebar() {
             <div className="flex h-6 w-6 items-center justify-center rounded bg-accent">
               <Activity size={13} className="text-white" />
             </div>
-            <span className="font-mono text-sm font-bold tracking-tight text-text-primary">SOPM</span>
+            <span className="font-mono text-sm font-bold tracking-tight text-text-primary">PyFaaS</span>
           </Link>
           <div className="flex min-w-0 items-center gap-2">
             <span className={cn("inline-flex h-1.5 w-1.5 shrink-0 rounded-full", wsConnected ? "bg-success" : "bg-error")} />

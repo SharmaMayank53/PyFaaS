@@ -1,4 +1,4 @@
-# SOPM API Reference
+# PyFaaS API Reference
 
 Base URL: `https://sopm.yourdomain.com/api/v1`
 

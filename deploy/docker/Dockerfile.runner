@@ -1,5 +1,5 @@
 # =============================================================================
-# SOPM Sandbox Runner
+# PyFaaS Sandbox Runner
 #
 # Minimal image that runs inside the gVisor Kubernetes Job.
 # Only contains what's needed to download and execute user code.

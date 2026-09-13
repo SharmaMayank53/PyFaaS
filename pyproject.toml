@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "sopm"
 version = "0.1.0"
-description = "Serverless Operating-system Process Manager"
+description = "Python Functions-as-a-Service Platform"
 requires-python = ">=3.12"
 dependencies = [
     # API

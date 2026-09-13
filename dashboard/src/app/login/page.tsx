@@ -75,7 +75,7 @@ export default function LoginPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent shadow-[0_12px_32px_rgba(56,189,248,0.22)]">
             <Activity size={17} className="text-bg-base" />
           </div>
-          <span className="font-mono text-xl font-bold tracking-tight text-text-primary">SOPM</span>
+          <span className="font-mono text-xl font-bold tracking-tight text-text-primary">PyFaaS</span>
         </div>
 
         <div className="rounded-2xl bg-bg-surface p-6 shadow-panel ring-1 ring-white/10">

@@ -1,5 +1,5 @@
-﻿"""
-SOPM - FastAPI Application
+"""
+PyFaaS - FastAPI Application
 
 Entry point for the API Gateway component.
 """
@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="SOPM - Serverless Operating-system Process Manager",
+        title="PyFaaS - Python Functions-as-a-Service Platform",
         description=(
             "Self-hosted serverless function execution platform. "
             "Upload Python functions, version them, execute on demand or on schedule."
@@ -71,7 +71,7 @@ def create_app() -> FastAPI:
     )
 
     # ---------------------------------------------------------------------------
-    # Custom middleware (order matters â€” outermost first)
+    # Custom middleware (order matters — outermost first)
     # ---------------------------------------------------------------------------
     app.add_middleware(MetricsMiddleware)
     app.add_middleware(RequestIDMiddleware)

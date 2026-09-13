@@ -3,8 +3,8 @@ import "./globals.css";
 import { Providers } from "@/components/layout/Providers";
 
 export const metadata: Metadata = {
-  title: "SOPM — Operations Dashboard",
-  description: "Serverless Operating-system Process Manager",
+  title: "PyFaaS — Operations Dashboard",
+  description: "Python Functions-as-a-Service Platform",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

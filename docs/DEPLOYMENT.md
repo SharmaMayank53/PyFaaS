@@ -1,6 +1,6 @@
-# SOPM Deployment Guide
+# PyFaaS Deployment Guide
 
-This guide covers deploying SOPM to a production Kubernetes cluster from scratch.
+This guide covers deploying PyFaaS to a production Kubernetes cluster from scratch.
 
 ---
 
@@ -199,7 +199,7 @@ helm install prometheus prometheus-community/kube-prometheus-stack \
   --namespace monitoring \
   --create-namespace
 
-# Apply SOPM service monitor
+# Apply PyFaaS service monitor
 kubectl apply -f - <<EOF
 apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor

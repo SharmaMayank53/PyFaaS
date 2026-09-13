@@ -1,8 +1,10 @@
-# SOPM - Serverless Operating-system Process Manager
+# PyFaaS - Python Functions-as-a-Service Platform
 
-SOPM is a self-hosted serverless platform for running Python functions from ZIP uploads. It includes a FastAPI backend, a Next.js dashboard, PostgreSQL, Redis, MinIO, workers, scheduling, API-key invocation, and Prometheus/Grafana monitoring.
+PyFaaS is a self-hosted serverless platform for running Python functions from ZIP uploads. It includes a FastAPI backend, a Next.js dashboard, PostgreSQL, Redis, MinIO, workers, scheduling, API-key invocation, and Prometheus/Grafana monitoring.
 
 The goal is simple: upload a Python function, run it on your own infrastructure, and inspect executions, structured results, and logs from a dashboard.
+
+Compatibility note: some internal environment variables, API headers, Redis keys, package paths, and artifact prefixes still use the legacy SOPM/sopm names. Those identifiers are part of the current runtime contract and were kept stable during the rebrand.
 
 ## What It Does
 
@@ -184,7 +186,7 @@ POST /api/v1/invoke/{function_id}
 Header: X-SOPM-Key: <key>
 ```
 
-SOPM also includes an MCP server for agents:
+PyFaaS also includes an MCP server for agents:
 
 ```powershell
 python -m sopm_mcp.server
@@ -199,7 +201,7 @@ Ephemeral raw-code execution exists at `POST /api/v1/execute-ephemeral`, but it 
 
 ## Local Execution Note
 
-In the Docker development stack, `SANDBOX_ENABLED=false`. That means uploaded functions run through the SOPM runner inside the worker container.
+In the Docker development stack, `SANDBOX_ENABLED=false`. That means uploaded functions run through the PyFaaS runner inside the worker container.
 
 This is useful for local development, but it is not a security boundary. For untrusted production workloads, use the Kubernetes/gVisor sandbox path.
 

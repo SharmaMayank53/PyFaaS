@@ -1,8 +1,8 @@
-﻿# Agent Quickstart
+# Agent Quickstart
 
-SOPM can be used as a sandboxed execution backend for AI agents. The agent can run raw Python once with `run_code`, or call persistent functions that already exist in SOPM.
+PyFaaS can be used as a sandboxed execution backend for AI agents. The agent can run raw Python once with `run_code`, or call persistent functions that already exist in PyFaaS.
 
-## 1. Start SOPM
+## 1. Start PyFaaS
 
 For local development, start the normal stack:
 
@@ -51,7 +51,7 @@ Example tool call shape:
 ```json
 {
   "code": "def handler(event, context):\n    return {'message': 'hello from agent', 'event': event}\n",
-  "event": {"name": "SOPM"},
+  "event": {"name": "PyFaaS"},
   "timeout": 10,
   "memory_mb": 128
 }
@@ -68,7 +68,7 @@ Expected structured result shape:
     "success": true,
     "result": {
       "message": "hello from agent",
-      "event": {"name": "SOPM"}
+      "event": {"name": "PyFaaS"}
     }
   }
 }

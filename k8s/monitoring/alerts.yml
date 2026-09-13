@@ -5,28 +5,28 @@ groups:
       # -----------------------------------------------------------------------
       # Availability
       # -----------------------------------------------------------------------
-      - alert: SOPMApiDown
+      - alert: PyFaaSApiDown
         expr: up{job="sopm-api"} == 0
         for: 1m
         labels:
           severity: critical
         annotations:
-          summary: "SOPM API is down"
-          description: "The SOPM API has been unreachable for more than 1 minute."
+          summary: "PyFaaS API is down"
+          description: "The PyFaaS API has been unreachable for more than 1 minute."
 
-      - alert: SOPMWorkerDown
+      - alert: PyFaaSWorkerDown
         expr: sopm_worker_active == 0
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "No active SOPM workers"
+          summary: "No active PyFaaS workers"
           description: "No workers are active. Executions will not be processed."
 
       # -----------------------------------------------------------------------
       # Execution health
       # -----------------------------------------------------------------------
-      - alert: SOPMHighExecutionFailureRate
+      - alert: PyFaaSHighExecutionFailureRate
         expr: |
           rate(sopm_executions_total{status="FAILED"}[5m])
           /
@@ -38,7 +38,7 @@ groups:
           summary: "High execution failure rate (>10%)"
           description: "{{ $value | humanizePercentage }} of executions are failing."
 
-      - alert: SOPMExecutionTimeoutRate
+      - alert: PyFaaSExecutionTimeoutRate
         expr: |
           rate(sopm_executions_total{status="TIMED_OUT"}[10m])
           /
@@ -52,36 +52,36 @@ groups:
       # -----------------------------------------------------------------------
       # Queue health
       # -----------------------------------------------------------------------
-      - alert: SOPMQueueDepthHigh
+      - alert: PyFaaSQueueDepthHigh
         expr: sopm_queue_depth > 500
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "SOPM queue depth is high"
+          summary: "PyFaaS queue depth is high"
           description: "Queue depth is {{ $value }}. Workers may be lagging."
 
-      - alert: SOPMQueueDepthCritical
+      - alert: PyFaaSQueueDepthCritical
         expr: sopm_queue_depth > 2000
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "SOPM queue depth is critical ({{ $value }})"
+          summary: "PyFaaS queue depth is critical ({{ $value }})"
 
-      - alert: SOPMDLQGrowing
+      - alert: PyFaaSDLQGrowing
         expr: increase(sopm_dlq_depth[15m]) > 10
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "SOPM dead-letter queue is growing"
+          summary: "PyFaaS dead-letter queue is growing"
           description: "{{ $value }} jobs moved to DLQ in last 15 minutes."
 
       # -----------------------------------------------------------------------
       # Latency
       # -----------------------------------------------------------------------
-      - alert: SOPMApiHighLatency
+      - alert: PyFaaSApiHighLatency
         expr: |
           histogram_quantile(0.95,
             rate(sopm_http_request_duration_seconds_bucket{endpoint!="/metrics"}[5m])
@@ -90,13 +90,13 @@ groups:
         labels:
           severity: warning
         annotations:
-          summary: "SOPM API p95 latency > 2s"
+          summary: "PyFaaS API p95 latency > 2s"
           description: "p95 latency is {{ $value | humanizeDuration }}."
 
       # -----------------------------------------------------------------------
       # Infrastructure
       # -----------------------------------------------------------------------
-      - alert: SOPMPostgresDown
+      - alert: PyFaaSPostgresDown
         expr: pg_up == 0
         for: 1m
         labels:
@@ -104,7 +104,7 @@ groups:
         annotations:
           summary: "PostgreSQL is down"
 
-      - alert: SOPMRedisDown
+      - alert: PyFaaSRedisDown
         expr: redis_up == 0
         for: 1m
         labels:

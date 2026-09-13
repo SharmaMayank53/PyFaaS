@@ -1,5 +1,5 @@
 # =============================================================================
-# SOPM Worker - Multi-stage Dockerfile
+# PyFaaS Worker - Multi-stage Dockerfile
 # =============================================================================
 
 FROM python:3.12-slim AS builder

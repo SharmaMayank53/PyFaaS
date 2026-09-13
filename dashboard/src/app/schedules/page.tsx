@@ -184,7 +184,7 @@ export default function SchedulesPage() {
                 onChange={(e) => setPayload(e.target.value)}
                 rows={4}
                 className="mt-2 w-full rounded-lg bg-bg-raised px-3 py-2 font-mono text-xs text-text-primary ring-1 ring-white/10 placeholder:text-text-faint focus:outline-none focus:ring-accent/60"
-                placeholder='{"name":"SOPM"}'
+                placeholder='{"name":"PyFaaS"}'
               />
             )}
           </div>
