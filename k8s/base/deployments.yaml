@@ -1,0 +1,366 @@
+---
+# =============================================================================
+# SOPM API Deployment
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sopm-api
+  namespace: sopm
+  labels:
+    app.kubernetes.io/name: sopm
+    app.kubernetes.io/component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sopm
+        app.kubernetes.io/component: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: sopm-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: sopm/api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: database-url
+            - name: DATABASE_URL_SYNC
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: database-url-sync
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: redis-url
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: secret-key
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-endpoint
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-secret-key
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FORMAT
+              value: "json"
+            - name: SANDBOX_ENABLED
+              value: "true"
+            - name: SANDBOX_NAMESPACE
+              value: "sopm-sandbox"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/component: api
+---
+# =============================================================================
+# SOPM API Service
+# =============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: sopm-api
+  namespace: sopm
+  labels:
+    app.kubernetes.io/component: api
+spec:
+  selector:
+    app.kubernetes.io/component: api
+  ports:
+    - port: 80
+      targetPort: 8000
+      name: http
+---
+# =============================================================================
+# SOPM Worker Deployment
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sopm-worker
+  namespace: sopm
+  labels:
+    app.kubernetes.io/name: sopm
+    app.kubernetes.io/component: worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: sopm
+        app.kubernetes.io/component: worker
+    spec:
+      serviceAccountName: sopm-worker
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: sopm/worker:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: database-url
+            - name: DATABASE_URL_SYNC
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: database-url-sync
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: redis-url
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: secret-key
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-endpoint
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-secret-key
+            - name: WORKER_CONCURRENCY
+              value: "4"
+            - name: SANDBOX_ENABLED
+              value: "true"
+            - name: SANDBOX_NAMESPACE
+              value: "sopm-sandbox"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: LOG_FORMAT
+              value: "json"
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 50Mi
+      terminationGracePeriodSeconds: 90
+---
+# =============================================================================
+# SOPM Scheduler Deployment (single replica — uses distributed lock)
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sopm-scheduler
+  namespace: sopm
+  labels:
+    app.kubernetes.io/component: scheduler
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: scheduler
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: scheduler
+    spec:
+      serviceAccountName: sopm-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: scheduler
+          image: sopm/worker:latest
+          command: ["python", "-m", "scheduler.scheduler"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: database-url
+            - name: DATABASE_URL_SYNC
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: database-url-sync
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: redis-url
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: secret-key
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-endpoint
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sopm-secrets
+                  key: minio-secret-key
+            - name: SCHEDULER_ENABLED
+              value: "true"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 20Mi
+---
+# =============================================================================
+# HorizontalPodAutoscaler - API
+# =============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: sopm-api
+  namespace: sopm
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: sopm-api
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

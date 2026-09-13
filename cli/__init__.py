@@ -1,0 +1,1 @@
+"""SOPM CLI package."""

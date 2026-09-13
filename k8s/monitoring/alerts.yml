@@ -1,0 +1,113 @@
+groups:
+  - name: sopm.platform
+    interval: 30s
+    rules:
+      # -----------------------------------------------------------------------
+      # Availability
+      # -----------------------------------------------------------------------
+      - alert: SOPMApiDown
+        expr: up{job="sopm-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SOPM API is down"
+          description: "The SOPM API has been unreachable for more than 1 minute."
+
+      - alert: SOPMWorkerDown
+        expr: sopm_worker_active == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No active SOPM workers"
+          description: "No workers are active. Executions will not be processed."
+
+      # -----------------------------------------------------------------------
+      # Execution health
+      # -----------------------------------------------------------------------
+      - alert: SOPMHighExecutionFailureRate
+        expr: |
+          rate(sopm_executions_total{status="FAILED"}[5m])
+          /
+          rate(sopm_executions_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High execution failure rate (>10%)"
+          description: "{{ $value | humanizePercentage }} of executions are failing."
+
+      - alert: SOPMExecutionTimeoutRate
+        expr: |
+          rate(sopm_executions_total{status="TIMED_OUT"}[10m])
+          /
+          rate(sopm_executions_total[10m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High execution timeout rate (>5%)"
+
+      # -----------------------------------------------------------------------
+      # Queue health
+      # -----------------------------------------------------------------------
+      - alert: SOPMQueueDepthHigh
+        expr: sopm_queue_depth > 500
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SOPM queue depth is high"
+          description: "Queue depth is {{ $value }}. Workers may be lagging."
+
+      - alert: SOPMQueueDepthCritical
+        expr: sopm_queue_depth > 2000
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "SOPM queue depth is critical ({{ $value }})"
+
+      - alert: SOPMDLQGrowing
+        expr: increase(sopm_dlq_depth[15m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SOPM dead-letter queue is growing"
+          description: "{{ $value }} jobs moved to DLQ in last 15 minutes."
+
+      # -----------------------------------------------------------------------
+      # Latency
+      # -----------------------------------------------------------------------
+      - alert: SOPMApiHighLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(sopm_http_request_duration_seconds_bucket{endpoint!="/metrics"}[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "SOPM API p95 latency > 2s"
+          description: "p95 latency is {{ $value | humanizeDuration }}."
+
+      # -----------------------------------------------------------------------
+      # Infrastructure
+      # -----------------------------------------------------------------------
+      - alert: SOPMPostgresDown
+        expr: pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+
+      - alert: SOPMRedisDown
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"

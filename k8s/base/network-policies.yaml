@@ -1,0 +1,129 @@
+---
+# =============================================================================
+# NetworkPolicy - Default deny all in sopm namespace
+# =============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: sopm
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Allow API ingress from anywhere (ingress controller handles TLS)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-ingress
+  namespace: sopm
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 8000
+---
+# Allow all platform components to reach Postgres, Redis, MinIO
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-platform-egress
+  namespace: sopm
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: sopm
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # PostgreSQL
+    - ports:
+        - port: 5432
+    # Redis
+    - ports:
+        - port: 6379
+    # MinIO
+    - ports:
+        - port: 9000
+    # Kubernetes API (for worker creating Jobs)
+    - ports:
+        - port: 443
+        - port: 6443
+---
+# Allow worker → API for status updates (optional internal calls)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-worker-to-api
+  namespace: sopm
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: worker
+      ports:
+        - port: 8000
+---
+# =============================================================================
+# NetworkPolicy - Sandbox namespace (strict isolation)
+# =============================================================================
+# Default: deny ALL in sandbox namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: sopm-sandbox
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# Sandbox pods may only reach DNS and MinIO to download artifacts.
+# There is intentionally no Kubernetes API or general internet egress here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sandbox-egress
+  namespace: sopm-sandbox
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: sandbox
+  policyTypes:
+    - Egress
+  egress:
+    # DNS
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # MinIO only (artifact download)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: sopm
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/component: minio
+      ports:
+        - port: 9000

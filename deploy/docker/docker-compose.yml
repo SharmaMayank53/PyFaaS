@@ -1,0 +1,185 @@
+# =============================================================================
+# SOPM - Local Development Stack
+#
+# Usage:
+#   docker compose up -d         # Start all services
+#   docker compose logs -f api   # Follow API logs
+#   docker compose down -v       # Tear down + remove volumes
+# =============================================================================
+
+x-common-env: &common-env
+  DATABASE_URL: postgresql+asyncpg://sopm:sopm@postgres:5432/sopm
+  DATABASE_URL_SYNC: postgresql+psycopg2://sopm:sopm@postgres:5432/sopm
+  REDIS_URL: redis://:sopm_redis@redis:6379/0
+  MINIO_ENDPOINT: minio:9000
+  MINIO_ACCESS_KEY: sopm_access
+  MINIO_SECRET_KEY: sopm_secret_key_dev
+  MINIO_SECURE: "false"
+  SECRET_KEY: dev_secret_key_minimum_32_characters_long
+  LOG_LEVEL: DEBUG
+  LOG_FORMAT: text
+  SANDBOX_ENABLED: "false"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Infrastructure
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sopm
+      POSTGRES_USER: sopm
+      POSTGRES_PASSWORD: sopm
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sopm"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --requirepass sopm_redis
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "sopm_redis", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: sopm_access
+      MINIO_ROOT_PASSWORD: sopm_secret_key_dev
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # Platform migrations — run once, then exit
+  # ---------------------------------------------------------------------------
+  migrate:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.api
+    command: alembic upgrade head
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # API
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.api
+    environment:
+      <<: *common-env
+      API_DEBUG: "true"
+      API_WORKERS: "1"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Worker (sandbox disabled in dev)
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.worker
+    environment:
+      <<: *common-env
+      WORKER_CONCURRENCY: "2"
+      WORKER_HEARTBEAT_INTERVAL: "10"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Scheduler
+  # ---------------------------------------------------------------------------
+  scheduler:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.worker
+    command: python -m scheduler.scheduler
+    environment:
+      <<: *common-env
+      SCHEDULER_ENABLED: "true"
+      SCHEDULER_POLL_INTERVAL: "30"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Observability
+  # ---------------------------------------------------------------------------
+  prometheus:
+    profiles: ["observability"]
+    image: prom/prometheus:latest
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    volumes:
+      - ../../k8s/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    profiles: ["observability"]
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "3100:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ../../k8s/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+
+volumes:
+  postgres_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:

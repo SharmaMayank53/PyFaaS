@@ -1,0 +1,55 @@
+# =============================================================================
+# SOPM API - Multi-stage Dockerfile
+# =============================================================================
+
+# Stage 1: builder
+FROM python:3.12-slim AS builder
+
+WORKDIR /build
+
+# Install build deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir build && \
+    pip install --no-cache-dir .
+
+# Stage 2: runtime
+FROM python:3.12-slim AS runtime
+
+# Security: run as non-root
+RUN groupadd --gid 1001 sopm && \
+    useradd --uid 1001 --gid sopm --no-create-home --shell /sbin/nologin sopm
+
+WORKDIR /app
+
+# Runtime deps only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy source
+COPY --chown=sopm:sopm api/ ./api/
+COPY --chown=sopm:sopm shared/ ./shared/
+COPY --chown=sopm:sopm sopm_mcp/ ./sopm_mcp/
+COPY --chown=sopm:sopm migrations/ ./migrations/
+COPY --chown=sopm:sopm alembic.ini .
+
+USER sopm
+
+EXPOSE 8000
+
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

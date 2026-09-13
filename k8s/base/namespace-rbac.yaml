@@ -1,0 +1,90 @@
+---
+# =============================================================================
+# SOPM Namespace
+# =============================================================================
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sopm
+  labels:
+    app.kubernetes.io/name: sopm
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# Sandbox namespace where user code runs
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: sopm-sandbox
+  labels:
+    app.kubernetes.io/name: sopm
+    sopm/role: sandbox
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+---
+# =============================================================================
+# ServiceAccount - API
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sopm-api
+  namespace: sopm
+  labels:
+    app.kubernetes.io/component: api
+automountServiceAccountToken: false
+---
+# =============================================================================
+# ServiceAccount - Worker (needs to create K8s Jobs)
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sopm-worker
+  namespace: sopm
+  labels:
+    app.kubernetes.io/component: worker
+automountServiceAccountToken: true
+---
+# Worker Role: create/get/delete Jobs and read Pods/logs in sandbox namespace
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: sopm-worker
+  namespace: sopm-sandbox
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sopm-worker
+  namespace: sopm-sandbox
+subjects:
+  - kind: ServiceAccount
+    name: sopm-worker
+    namespace: sopm
+roleRef:
+  kind: Role
+  name: sopm-worker
+  apiGroup: rbac.authorization.k8s.io
+---
+# =============================================================================
+# ServiceAccount - Runner (minimal permissions for sandbox pods)
+# =============================================================================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sopm-runner
+  namespace: sopm-sandbox
+  labels:
+    app.kubernetes.io/component: runner
+automountServiceAccountToken: false
