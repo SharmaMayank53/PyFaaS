@@ -4,7 +4,6 @@ PyFaaS is a self-hosted serverless platform for running Python functions from ZI
 
 The goal is simple: upload a Python function, run it on your own infrastructure, and inspect executions, structured results, and logs from a dashboard.
 
-Compatibility note: some internal environment variables, API headers, Redis keys, package paths, and artifact prefixes still use the legacy SOPM/sopm names. Those identifiers are part of the current runtime contract and were kept stable during the rebrand.
 
 ## What It Does
 
@@ -39,18 +38,24 @@ Main folders:
 
 ```text
 api/             FastAPI backend
-sopm-dashboard/  Next.js dashboard
+dashboard/       Next.js dashboard
 worker/          execution worker
 sandbox/         runner and Kubernetes sandbox logic
 scheduler/       cron scheduler
 shared/          database, auth, queue, storage, config
 migrations/      Alembic migrations
 deploy/docker/   local Docker stack
-sopm_mcp/        MCP server for agent-facing execution
+PyFaaS_mcp/      MCP server for agent-facing execution
 docs/            extra architecture/API/deployment notes
 ```
 
 ## Local Development
+
+Project root in this checkout:
+
+```text
+C:\PyFaaS
+```
 
 ### 1. Start the backend stack
 
@@ -67,7 +72,7 @@ The migration container exiting with code `0` is normal. It means Alembic finish
 ### 2. Start the dashboard
 
 ```powershell
-cd sopm-dashboard
+cd dashboard
 npm install
 npm run dev
 ```
@@ -183,13 +188,13 @@ API keys are used for external invocation:
 
 ```text
 POST /api/v1/invoke/{function_id}
-Header: X-SOPM-Key: <key>
+Header: X-PyFaaS-Key: <key>
 ```
 
 PyFaaS also includes an MCP server for agents:
 
 ```powershell
-python -m sopm_mcp.server
+python -m PyFaaS_mcp.server
 ```
 
 See:
@@ -234,14 +239,14 @@ docker compose -f deploy/docker/docker-compose.yml logs -f worker
 Restart only the dashboard after frontend changes:
 
 ```powershell
-cd sopm-dashboard
+cd dashboard
 npm run dev
 ```
 
 If the dashboard keeps showing stale development output:
 
 ```powershell
-cd sopm-dashboard
+cd dashboard
 Remove-Item -Recurse -Force .next
 npm run dev
 ```
@@ -249,7 +254,7 @@ npm run dev
 Run frontend checks:
 
 ```powershell
-cd sopm-dashboard
+cd dashboard
 npm run type-check
 npm run build
 ```
