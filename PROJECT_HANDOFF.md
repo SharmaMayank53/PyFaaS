@@ -1484,7 +1484,7 @@ Remaining Phase 3 hardening ideas:
 - Add a first-class DLQ/operator page if Redis dead-letter operations become part of normal operations.
 ## 33. Latest Phase 4 State
 
-Phase 4 adds ephemeral raw-code execution and an agent-facing MCP server. The goal is to let an agent run one-off Python code without creating a persistent `Function` or uploading a ZIP, while still reusing PyFaaS's normal execution observability pipeline.
+Phase 4 adds ephemeral raw-code execution through the REST API. The goal is to let an agent run one-off Python code without creating a persistent `Function` or uploading a ZIP, while still reusing PyFaaS's normal execution observability pipeline.
 
 Key Phase 4 backend files:
 
@@ -1500,17 +1500,6 @@ shared/db/models.py
 sandbox/runner.py
 sandbox/k8s_sandbox.py
 migrations/versions/005_ephemeral_executions.py
-```
-
-Key Phase 4 MCP/docs files:
-
-```text
-sopm_mcp/server.py
-sopm_mcp/__init__.py
-mcp/README.md
-docs/AGENTS.md
-README.md
-pyproject.toml
 ```
 
 New data model pieces:
@@ -1538,13 +1527,6 @@ Runner behavior:
 - The runner detects `SOPM_SOURCE_CODE`, writes it to the module path implied by the entrypoint, and executes it through the same handler invocation logic.
 - Kubernetes/gVisor jobs receive `SOPM_SOURCE_CODE` as an environment variable. Current request validation caps inline code size to keep this practical.
 
-MCP behavior:
-
-- `python -m sopm_mcp.server` starts the MCP server.
-- `run_code` calls `/execute-ephemeral` and returns structured result/error/log fields.
-- `invoke_function` calls persistent deployed functions by name or id.
-- `list_functions` lists functions visible to the API key.
-
 Dashboard behavior:
 
 - `/executions` has a source filter: all, persistent functions, or ephemeral.
@@ -1553,7 +1535,7 @@ Dashboard behavior:
 Phase 4 verification completed on August 9, 2026:
 
 ```text
-python -m py_compile relevant backend/runner/MCP files  passed
+python -m py_compile relevant backend/runner files      passed
 npm.cmd run type-check                                  passed
 npm.cmd run build                                       passed
 literal marker scan                                     passed
@@ -1561,7 +1543,6 @@ docker compose build scheduler                          passed
 docker compose up -d --build migrate api worker scheduler passed
 Alembic 004_rollbacks_canary_queue -> 005_ephemeral_executions passed
 API /ready after rebuild                                healthy
-MCP import inside API Docker image                       passed
 ```
 
 Current Docker runtime state after the latest fix:
@@ -1572,8 +1553,6 @@ Current Docker runtime state after the latest fix:
 - `worker` and `scheduler` are running.
 - `postgres`, `redis`, and `minio` are healthy.
 - The previous `pyproject.toml` UTF-8 BOM problem was fixed; keep `pyproject.toml` encoded as UTF-8 without BOM.
-- `deploy/docker/Dockerfile.api` now copies `sopm_mcp/` into the runtime image so `python -m sopm_mcp.server` can import in Docker.
-- `sopm_mcp/server.py` now uses the low-level `mcp 2.0.0` server API instead of the removed `mcp.server.fastmcp` import path.
 
 Ephemeral execution smoke result:
 
@@ -1899,7 +1878,6 @@ Updated surfaces:
 README.md
 PROJECT_HANDOFF.md
 docs/*.md
-mcp/README.md
 api/main.py
 pyproject.toml
 .env.example
@@ -1925,11 +1903,10 @@ sopm_* API key prefix
 sopm: Redis key prefixes
 sopm-artifacts / sopm-packages buckets
 sopm-dashboard folder name
-sopm_mcp Python package name
 existing Kubernetes namespaces/service names/image examples unless changing only comments or alert display text
 ```
 
 Rationale:
 
 - The dashboard, README, docs, API title, package metadata, and monitoring alert display names now use PyFaaS.
-- Runtime contracts were not renamed during this pass to avoid breaking existing tokens, queues, buckets, tests, scripts, Kubernetes manifests, and MCP clients.
+- Runtime contracts were not renamed during this pass to avoid breaking existing tokens, queues, buckets, tests, scripts, and Kubernetes manifests.

@@ -40,7 +40,6 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy source
 COPY --chown=sopm:sopm api/ ./api/
 COPY --chown=sopm:sopm shared/ ./shared/
-COPY --chown=sopm:sopm sopm_mcp/ ./sopm_mcp/
 COPY --chown=sopm:sopm migrations/ ./migrations/
 COPY --chown=sopm:sopm alembic.ini .
 

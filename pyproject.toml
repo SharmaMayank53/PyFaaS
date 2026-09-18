@@ -55,7 +55,6 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "aiofiles>=23.2.1",
     "anyio>=4.4.0",
-    "mcp>=1.2.0",
 ]
 
 [project.optional-dependencies]
@@ -104,6 +103,6 @@ omit = ["tests/*", "migrations/*", "*/conftest.py"]
 skips = ["B101", "B601"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["api", "worker", "shared", "scheduler", "sandbox", "sopm_mcp"]
+packages = ["api", "worker", "shared", "scheduler", "sandbox"]
 
 

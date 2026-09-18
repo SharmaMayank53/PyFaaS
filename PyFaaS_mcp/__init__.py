@@ -1,1 +1,0 @@
-﻿"""SOPM MCP server package."""

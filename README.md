@@ -45,7 +45,10 @@ scheduler/       cron scheduler
 shared/          database, auth, queue, storage, config
 migrations/      Alembic migrations
 deploy/docker/   local Docker stack
+<<<<<<< HEAD
 PyFaaS_mcp/      MCP server for agent-facing execution
+=======
+>>>>>>> 209ce61 (Update project)
 docs/            extra architecture/API/deployment notes
 ```
 
@@ -191,6 +194,7 @@ POST /api/v1/invoke/{function_id}
 Header: X-PyFaaS-Key: <key>
 ```
 
+<<<<<<< HEAD
 PyFaaS also includes an MCP server for agents:
 
 ```powershell
@@ -202,6 +206,8 @@ See:
 - [Agent quickstart](docs/AGENTS.md)
 - [MCP server guide](mcp/README.md)
 
+=======
+>>>>>>> 209ce61 (Update project)
 Ephemeral raw-code execution exists at `POST /api/v1/execute-ephemeral`, but it is gated for safety. It requires the Kubernetes/gVisor sandbox path by default. Local unsandboxed testing requires `EPHEMERAL_LOCAL_EXECUTION_ENABLED=true` and should only be used with trusted code.
 
 ## Local Execution Note
