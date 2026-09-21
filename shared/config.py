@@ -1,9 +1,10 @@
-﻿"""
+"""
 SOPM - Application Configuration
 
 All settings are loaded from environment variables or .env file.
 No credentials are hardcoded here.
 """
+
 from __future__ import annotations
 
 import os
@@ -25,7 +26,8 @@ class Settings(BaseSettings):
     # -----------------------------------------------------------------------
     # API
     # -----------------------------------------------------------------------
-    api_host: str = "0.0.0.0"
+    # Containers must accept traffic through their network interface.
+    api_host: str = "0.0.0.0"  # noqa: S104  # nosec B104
     api_port: int = 8000
     api_debug: bool = False
     api_workers: int = 4
@@ -148,5 +150,4 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return a cached singleton Settings instance."""
-    return Settings()  # type: ignore[call-arg]
-
+    return Settings()

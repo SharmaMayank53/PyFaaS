@@ -1,11 +1,12 @@
 """
 SOPM - Schedules Router
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from typing import Annotated
+from datetime import UTC, datetime
+from typing import Annotated, cast
 
 from croniter import croniter
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -19,7 +20,7 @@ from api.schemas.schemas import (
     ScheduleResponse,
     ScheduleUpdateRequest,
 )
-from shared.db.models import Function, Schedule, ScheduleStatus, User
+from shared.db.models import Function, Schedule, User
 from shared.db.session import get_db
 from shared.observability.logging import get_logger
 
@@ -28,7 +29,7 @@ logger = get_logger(__name__)
 
 
 def _next_run(cron_expr: str) -> datetime:
-    return croniter(cron_expr, datetime.now(timezone.utc)).get_next(datetime)
+    return cast(datetime, croniter(cron_expr, datetime.now(UTC)).get_next(datetime))
 
 
 @router.get("", response_model=ScheduleListResponse, summary="List schedules")
@@ -46,14 +47,18 @@ async def list_schedules(
     ).scalar_one()
 
     schedules = (
-        await db.execute(
-            select(Schedule)
-            .where(Schedule.owner_id == current_user.id)
-            .order_by(Schedule.created_at.desc())
-            .offset(offset)
-            .limit(limit)
+        (
+            await db.execute(
+                select(Schedule)
+                .where(Schedule.owner_id == current_user.id)
+                .order_by(Schedule.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
 
     return ScheduleListResponse(
         items=[ScheduleResponse.model_validate(s) for s in schedules],
@@ -104,9 +109,7 @@ async def get_schedule(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> ScheduleResponse:
     result = await db.execute(
-        select(Schedule).where(
-            Schedule.id == schedule_id, Schedule.owner_id == current_user.id
-        )
+        select(Schedule).where(Schedule.id == schedule_id, Schedule.owner_id == current_user.id)
     )
     s = result.scalar_one_or_none()
     if s is None:
@@ -122,9 +125,7 @@ async def update_schedule(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> ScheduleResponse:
     result = await db.execute(
-        select(Schedule).where(
-            Schedule.id == schedule_id, Schedule.owner_id == current_user.id
-        )
+        select(Schedule).where(Schedule.id == schedule_id, Schedule.owner_id == current_user.id)
     )
     s = result.scalar_one_or_none()
     if s is None:
@@ -156,9 +157,7 @@ async def delete_schedule(
     current_user: Annotated[User, Depends(get_current_user)],
 ) -> None:
     result = await db.execute(
-        select(Schedule).where(
-            Schedule.id == schedule_id, Schedule.owner_id == current_user.id
-        )
+        select(Schedule).where(Schedule.id == schedule_id, Schedule.owner_id == current_user.id)
     )
     s = result.scalar_one_or_none()
     if s is None:

@@ -4,13 +4,13 @@ SOPM - Code Security Validator
 Uses AST analysis to reject dangerous Python constructs before execution.
 This is a defense-in-depth measure; gVisor provides the primary sandbox.
 """
+
 from __future__ import annotations
 
 import ast
 import zipfile
 from dataclasses import dataclass, field
 from io import BytesIO
-from pathlib import Path
 
 # ---------------------------------------------------------------------------
 # Deny-list: these names are NEVER allowed in user code
@@ -273,7 +273,7 @@ class _ASTValidator(ast.NodeVisitor):
             root = alias.name.split(".")[0]
             if root in DENIED_MODULES:
                 self._flag(node, f"Forbidden import: '{alias.name}'")
-            elif root not in ALLOWED_MODULES and not alias.name.split(".")[0] in ALLOWED_MODULES:
+            elif root not in ALLOWED_MODULES and alias.name.split(".")[0] not in ALLOWED_MODULES:
                 # Warn about unknown modules but allow them (pip may install them)
                 pass
         self.generic_visit(node)

@@ -4,6 +4,7 @@ Integration tests — full request/response cycle through the API.
 These use in-memory SQLite and mock external services (Redis, MinIO, K8s).
 They test multi-step workflows end to end.
 """
+
 from __future__ import annotations
 
 import io
@@ -11,7 +12,6 @@ import uuid
 import zipfile
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -77,7 +77,7 @@ class TestFullFunctionLifecycle:
             data={"entrypoint": "handler.handler", "timeout": "60"},
         )
         assert ver_resp.status_code == 201
-        version_id = ver_resp.json()["id"]
+        assert ver_resp.json()["id"]
 
         # 5. Trigger execution
         exec_resp = await client.post(
@@ -251,15 +251,11 @@ class TestSecurityBoundaries:
         alice_fn_id = fn_resp.json()["id"]
 
         # Bob tries to access Alice's function → 404 (not 403 to avoid enumeration)
-        resp = await client.get(
-            f"/api/v1/functions/{alice_fn_id}", headers=bob_headers
-        )
+        resp = await client.get(f"/api/v1/functions/{alice_fn_id}", headers=bob_headers)
         assert resp.status_code == 404
 
         # Bob tries to delete Alice's function
-        resp = await client.delete(
-            f"/api/v1/functions/{alice_fn_id}", headers=bob_headers
-        )
+        resp = await client.delete(f"/api/v1/functions/{alice_fn_id}", headers=bob_headers)
         assert resp.status_code == 404
 
     async def test_invalid_cron_expression_rejected(
@@ -275,9 +271,7 @@ class TestSecurityBoundaries:
         )
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
 
-        fn = await client.post(
-            "/api/v1/functions", json={"name": "cron-fn"}, headers=headers
-        )
+        fn = await client.post("/api/v1/functions", json={"name": "cron-fn"}, headers=headers)
 
         bad_cron_resp = await client.post(
             "/api/v1/schedules",

@@ -3,6 +3,7 @@ Dashboard performance indexes.
 
 Adds composite indexes used by the dashboard aggregation queries.
 """
+
 from __future__ import annotations
 
 from alembic import op

@@ -3,6 +3,7 @@ SOPM - Prometheus Metrics
 
 All platform metrics are defined here as module-level singletons.
 """
+
 from __future__ import annotations
 
 from prometheus_client import Counter, Gauge, Histogram, Info

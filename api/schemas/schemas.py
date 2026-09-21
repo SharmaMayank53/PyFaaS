@@ -1,8 +1,9 @@
-﻿"""
+"""
 SOPM - API Schemas (Pydantic v2)
 
 All request/response models. Strict validation on all inputs.
 """
+
 from __future__ import annotations
 
 import re
@@ -10,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from shared.db.models import ExecutionStatus, FunctionStatus, ScheduleStatus
 
@@ -45,7 +46,7 @@ class UserLoginRequest(SOPMBase):
 class TokenResponse(SOPMBase):
     access_token: str
     refresh_token: str
-    token_type: str = "bearer"
+    token_type: str = "bearer"  # noqa: S105 - OAuth scheme name, not a credential.
     expires_in: int  # seconds
 
 
@@ -102,8 +103,8 @@ class FunctionResponse(SOPMBase):
     owner_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
-    active_version: "FunctionVersionResponse | None" = None
-    canary_version: "FunctionVersionResponse | None" = None
+    active_version: FunctionVersionResponse | None = None
+    canary_version: FunctionVersionResponse | None = None
 
 
 class FunctionListResponse(SOPMBase):
@@ -335,4 +336,3 @@ class PaginationParams(SOPMBase):
     @property
     def offset(self) -> int:
         return (self.page - 1) * self.page_size
-

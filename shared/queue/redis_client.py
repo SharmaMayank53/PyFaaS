@@ -3,6 +3,7 @@ SOPM - Redis Client
 
 Provides connection pooling, retries, reconnection, and distributed locking.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -10,11 +11,11 @@ import contextlib
 import time
 import uuid
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Any, cast
 
 import redis.asyncio as aioredis
 from redis.asyncio import Redis
-from redis.exceptions import LockError, RedisError
+from redis.exceptions import RedisError
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from shared.config import get_settings
@@ -39,7 +40,7 @@ def get_redis_pool() -> aioredis.ConnectionPool:
     return _pool
 
 
-def get_redis() -> Redis:  # type: ignore[type-arg]
+def get_redis() -> Redis:
     """Return a Redis client backed by the shared connection pool."""
     return aioredis.Redis(connection_pool=get_redis_pool())
 
@@ -86,7 +87,7 @@ class DistributedLock:
 
     def __init__(
         self,
-        redis: Redis,  # type: ignore[type-arg]
+        redis: Redis,
         name: str,
         timeout: int = DEFAULT_LOCK_TIMEOUT,
         wait: int = DEFAULT_LOCK_WAIT,
@@ -125,7 +126,7 @@ class DistributedLock:
         end
         """
         with contextlib.suppress(RedisError):
-            await self._redis.eval(script, 1, self._name, self._token)  # type: ignore[call-arg]
+            await self._redis.eval(script, 1, self._name, self._token)
 
     async def __aenter__(self) -> bool:
         return await self.acquire()
@@ -144,7 +145,7 @@ PROCESSING_SET = "sopm:processing"
 
 @redis_retry
 async def enqueue_job(
-    redis: Redis,  # type: ignore[type-arg]
+    redis: Redis,
     job_id: str,
     payload: dict[str, Any],
     priority: int = 0,
@@ -158,7 +159,7 @@ async def enqueue_job(
 
 @redis_retry
 async def dequeue_job(
-    redis: Redis,  # type: ignore[type-arg]
+    redis: Redis,
     timeout: int = 5,
 ) -> dict[str, Any] | None:
     """
@@ -173,14 +174,15 @@ async def dequeue_job(
     if result is None:
         return None
 
-    _queue, job, score = result
+    # BZPOPMIN returns a key, member and numeric score in that order.
+    _queue, job, score = cast(tuple[str, str, float], result)
     await redis.zadd(PROCESSING_SET, {job: score})
-    return json.loads(job)  # type: ignore[arg-type]
+    return cast(dict[str, Any], json.loads(job))
 
 
 @redis_retry
 async def ack_job(
-    redis: Redis,  # type: ignore[type-arg]
+    redis: Redis,
     job_id: str,
 ) -> None:
     """Remove a job from the processing set after completion."""
@@ -192,7 +194,7 @@ async def ack_job(
         cursor, members = await redis.zscan(PROCESSING_SET, cursor)
         for member, _ in members:
             try:
-                data = json.loads(member)
+                data = json.loads(cast(str, member))
                 if data.get("job_id") == job_id:
                     await redis.zrem(PROCESSING_SET, member)
                     return
@@ -203,23 +205,22 @@ async def ack_job(
 
 
 @redis_retry
-async def queue_depth(redis: Redis) -> int:  # type: ignore[type-arg]
+async def queue_depth(redis: Redis) -> int:
     """Return the current queue depth."""
     return await redis.zcard(QUEUE_NAME)
 
 
-async def heartbeat(redis: Redis, worker_id: str, ttl: int = 90) -> None:  # type: ignore[type-arg]
+async def heartbeat(redis: Redis, worker_id: str, ttl: int = 90) -> None:
     """Write a worker heartbeat key with TTL."""
     key = f"sopm:worker:{worker_id}:heartbeat"
     await redis.set(key, int(time.time()), ex=ttl)
 
 
 @contextlib.asynccontextmanager
-async def redis_dependency() -> AsyncGenerator[Redis, None]:  # type: ignore[type-arg]
+async def redis_dependency() -> AsyncGenerator[Redis, None]:
     """FastAPI dependency for Redis."""
     client = get_redis()
     try:
         yield client
     finally:
         await client.aclose()
-

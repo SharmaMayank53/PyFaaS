@@ -1,11 +1,10 @@
 """Tests for authentication endpoints."""
+
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 
 from shared.db.models import User
-from shared.security.auth import hash_password
 
 
 class TestRegister:
@@ -21,9 +20,7 @@ class TestRegister:
         assert "id" in data
         assert "hashed_password" not in data
 
-    async def test_register_duplicate_username(
-        self, client: AsyncClient, test_user: User
-    ) -> None:
+    async def test_register_duplicate_username(self, client: AsyncClient, test_user: User) -> None:
         resp = await client.post(
             "/api/v1/auth/register",
             json={

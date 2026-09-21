@@ -1,9 +1,10 @@
-﻿"""Add ephemeral execution metadata.
+"""Add ephemeral execution metadata.
 
 Revision ID: 005_ephemeral_executions
 Revises: 004_rollbacks_canary_queue
 Create Date: 2026-08-09
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -19,10 +20,14 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
-    op.add_column("executions", sa.Column("api_key_id", postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column(
+        "executions", sa.Column("api_key_id", postgresql.UUID(as_uuid=True), nullable=True)
+    )
     op.add_column(
         "executions",
-        sa.Column("execution_type", sa.String(length=32), nullable=False, server_default="function"),
+        sa.Column(
+            "execution_type", sa.String(length=32), nullable=False, server_default="function"
+        ),
     )
     op.alter_column("executions", "execution_type", server_default=None)
     op.create_foreign_key(
@@ -47,5 +52,3 @@ def downgrade() -> None:
     op.drop_constraint("fk_executions_api_key_id_api_keys", "executions", type_="foreignkey")
     op.drop_column("executions", "execution_type")
     op.drop_column("executions", "api_key_id")
-
-

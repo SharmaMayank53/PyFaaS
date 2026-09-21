@@ -4,9 +4,10 @@ Revision ID: 001_initial_schema
 Revises:
 Create Date: 2024-01-01 00:00:00.000000
 """
+
 from __future__ import annotations
 
-from typing import Sequence
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
@@ -23,7 +24,13 @@ def upgrade() -> None:
     # ENUMS
     # -----------------------------------------------------------------------
     execution_status = postgresql.ENUM(
-        "PENDING", "QUEUED", "RUNNING", "COMPLETED", "FAILED", "TIMED_OUT", "CANCELLED",
+        "PENDING",
+        "QUEUED",
+        "RUNNING",
+        "COMPLETED",
+        "FAILED",
+        "TIMED_OUT",
+        "CANCELLED",
         name="executionstatus",
         create_type=False,
     )
@@ -104,9 +111,7 @@ def upgrade() -> None:
             nullable=False,
         ),
     )
-    op.create_unique_constraint(
-        "uq_function_owner_name", "functions", ["owner_id", "name"]
-    )
+    op.create_unique_constraint("uq_function_owner_name", "functions", ["owner_id", "name"])
     op.create_index("ix_function_owner_id", "functions", ["owner_id"])
     op.create_index("ix_function_status", "functions", ["status"])
 
@@ -148,9 +153,7 @@ def upgrade() -> None:
     op.create_unique_constraint(
         "uq_version_function_number", "function_versions", ["function_id", "version_number"]
     )
-    op.create_index(
-        "ix_function_version_function_id", "function_versions", ["function_id"]
-    )
+    op.create_index("ix_function_version_function_id", "function_versions", ["function_id"])
 
     # Now add the FK from functions.active_version_id -> function_versions.id
     op.create_foreign_key(

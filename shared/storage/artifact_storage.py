@@ -3,11 +3,11 @@ SOPM - Artifact Storage (MinIO)
 
 Handles upload/download of function source archives and build artifacts.
 """
+
 from __future__ import annotations
 
 import hashlib
 import io
-from pathlib import Path
 
 from minio import Minio
 from minio.error import S3Error

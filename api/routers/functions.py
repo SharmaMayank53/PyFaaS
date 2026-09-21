@@ -3,6 +3,7 @@ SOPM - Functions Router
 
 Endpoints for function CRUD and version management.
 """
+
 from __future__ import annotations
 
 import uuid
@@ -71,7 +72,6 @@ async def _get_function_or_404(
     return fn
 
 
-
 def _record_activation(
     db: AsyncSession,
     fn: Function,
@@ -94,6 +94,7 @@ def _record_activation(
         )
     )
 
+
 # ---------------------------------------------------------------------------
 # Function CRUD
 # ---------------------------------------------------------------------------
@@ -109,9 +110,13 @@ async def list_functions(
     offset, limit = pagination
     page = offset // limit + 1
 
-    query = select(Function).options(selectinload(Function.active_version), selectinload(Function.canary_version)).where(Function.owner_id == current_user.id)
-    count_query = select(func.count()).select_from(Function).where(
-        Function.owner_id == current_user.id
+    query = (
+        select(Function)
+        .options(selectinload(Function.active_version), selectinload(Function.canary_version))
+        .where(Function.owner_id == current_user.id)
+    )
+    count_query = (
+        select(func.count()).select_from(Function).where(Function.owner_id == current_user.id)
     )
 
     if status_filter:
@@ -147,7 +152,9 @@ async def create_function(
 ) -> FunctionResponse:
     # Enforce per-user function limit
     count_result = await db.execute(
-        select(func.count()).select_from(Function).where(
+        select(func.count())
+        .select_from(Function)
+        .where(
             Function.owner_id == current_user.id,
             Function.status != FunctionStatus.DEPRECATED,
         )
@@ -252,7 +259,10 @@ async def delete_function(
     if active_count:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Function has active executions. Wait for them to finish or cancel them before deleting.",
+            detail=(
+                "Function has active executions. "
+                "Wait for them to finish or cancel them before deleting."
+            ),
         )
 
     versions_result = await db.execute(
@@ -380,9 +390,7 @@ async def create_version(
 
     # Assign next version number
     max_version_result = await db.execute(
-        select(func.max(FunctionVersion.version_number)).where(
-            FunctionVersion.function_id == fn.id
-        )
+        select(func.max(FunctionVersion.version_number)).where(FunctionVersion.function_id == fn.id)
     )
     max_version = max_version_result.scalar_one() or 0
     next_version = max_version + 1
@@ -503,7 +511,9 @@ async def activate_version(
     fn.active_version_id = version_id
     fn.canary_version_id = None
     fn.canary_percent = 0
-    _record_activation(db, fn, current_user, "activate", previous_version_id, activated_version_id=version_id)
+    _record_activation(
+        db, fn, current_user, "activate", previous_version_id, activated_version_id=version_id
+    )
     await db.flush()
 
     refreshed = await _get_function_or_404(function_id, current_user, db)
@@ -541,13 +551,23 @@ async def update_canary(
         if version is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Version not found")
         if body.canary_version_id == fn.active_version_id and body.canary_percent < 100:
-            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Canary version must differ from active version")
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Canary version must differ from active version",
+            )
 
         if body.canary_percent == 100:
             fn.active_version_id = body.canary_version_id
             fn.canary_version_id = None
             fn.canary_percent = 0
-            _record_activation(db, fn, current_user, "promote", previous_version_id, activated_version_id=body.canary_version_id)
+            _record_activation(
+                db,
+                fn,
+                current_user,
+                "promote",
+                previous_version_id,
+                activated_version_id=body.canary_version_id,
+            )
         else:
             fn.canary_version_id = body.canary_version_id
             fn.canary_percent = body.canary_percent

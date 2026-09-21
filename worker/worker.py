@@ -9,16 +9,15 @@ Design principles:
 - Isolated: one failing job never crashes the worker
 - Graceful: handles SIGTERM/SIGINT cleanly
 """
+
 from __future__ import annotations
 
 import asyncio
 import signal
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
-
-import structlog
 
 from sandbox.k8s_sandbox import KubernetesSandbox, SandboxResult
 from shared.config import get_settings
@@ -26,9 +25,9 @@ from shared.db.models import Execution, ExecutionLog, ExecutionStatus
 from shared.db.session import get_db_context
 from shared.observability.logging import configure_logging, get_logger
 from shared.observability.metrics import (
-    EXECUTIONS_TOTAL,
     EXECUTION_DURATION_SECONDS,
     EXECUTION_ERRORS_TOTAL,
+    EXECUTIONS_TOTAL,
     QUEUE_DEPTH,
     WORKER_ACTIVE,
     WORKER_JOBS_PROCESSED_TOTAL,
@@ -65,9 +64,7 @@ class Worker:
 
         heartbeat_task = asyncio.create_task(self._heartbeat_loop())
         recovery_task = (
-            asyncio.create_task(self._stale_recovery_loop())
-            if self._id.endswith("-0")
-            else None
+            asyncio.create_task(self._stale_recovery_loop()) if self._id.endswith("-0") else None
         )
 
         try:
@@ -135,7 +132,7 @@ class Worker:
                 )
                 return
 
-            execution.started_at = datetime.now(timezone.utc)
+            execution.started_at = datetime.now(UTC)
             execution.worker_id = self._id
             await db.flush()
 
@@ -146,7 +143,7 @@ class Worker:
                 self._sandbox.execute(job),
                 timeout=job.get("timeout", settings.sandbox_default_timeout) + 30,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             sandbox_result = SandboxResult(
                 success=False,
                 error="Execution timed out (worker timeout)",
@@ -193,13 +190,17 @@ class Worker:
             except ValueError:
                 pass  # Already in terminal state — skip
 
-            execution.completed_at = datetime.now(timezone.utc)
+            execution.completed_at = datetime.now(UTC)
             execution.duration_ms = duration_ms
             execution.result = sandbox_result.result
             execution.error_message = sandbox_result.error
             if sandbox_result.success:
                 execution.failure_kind = None
-            elif sandbox_result.error and ("Sandbox error" in sandbox_result.error or "Kubernetes API" in sandbox_result.error or "worker timeout" in sandbox_result.error):
+            elif sandbox_result.error and (
+                "Sandbox error" in sandbox_result.error
+                or "Kubernetes API" in sandbox_result.error
+                or "worker timeout" in sandbox_result.error
+            ):
                 execution.failure_kind = "infra"
             else:
                 execution.failure_kind = "handler"
@@ -237,13 +238,16 @@ class Worker:
             duration_ms=duration_ms,
         )
 
-
     async def _stale_recovery_loop(self) -> None:
         while not self._shutdown.is_set():
             try:
                 recovered = await self._recover_stale_running_executions()
                 if recovered:
-                    logger.warning("stale_execution_recovery_completed", worker_id=self._id, recovered=recovered)
+                    logger.warning(
+                        "stale_execution_recovery_completed",
+                        worker_id=self._id,
+                        recovered=recovered,
+                    )
             except Exception as exc:
                 logger.error("stale_execution_recovery_error", worker_id=self._id, error=str(exc))
             await asyncio.sleep(settings.worker_stale_recovery_interval)
@@ -251,7 +255,7 @@ class Worker:
     async def _recover_stale_running_executions(self) -> int:
         from sqlalchemy import select
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         recovered = 0
         async with get_db_context() as db:
             result = await db.execute(
@@ -261,8 +265,12 @@ class Worker:
                 )
             )
             for execution in result.scalars().all():
-                timeout_seconds = max(1, execution.timeout) * 2 + settings.worker_stale_timeout_grace
-                if execution.started_at and execution.started_at > now - timedelta(seconds=timeout_seconds):
+                timeout_seconds = (
+                    max(1, execution.timeout) * 2 + settings.worker_stale_timeout_grace
+                )
+                if execution.started_at and execution.started_at > now - timedelta(
+                    seconds=timeout_seconds
+                ):
                     continue
 
                 try:
@@ -272,7 +280,9 @@ class Worker:
 
                 execution.completed_at = now
                 execution.failure_kind = "infra"
-                execution.error_message = "Worker did not report completion before stale recovery deadline"
+                execution.error_message = (
+                    "Worker did not report completion before stale recovery deadline"
+                )
                 if execution.started_at:
                     execution.duration_ms = int((now - execution.started_at).total_seconds() * 1000)
                 db.add(
@@ -285,7 +295,9 @@ class Worker:
                     )
                 )
                 recovered += 1
-                EXECUTIONS_TOTAL.labels(status=ExecutionStatus.FAILED.value, runtime="python3.12").inc()
+                EXECUTIONS_TOTAL.labels(
+                    status=ExecutionStatus.FAILED.value, runtime="python3.12"
+                ).inc()
                 EXECUTION_ERRORS_TOTAL.labels(error_type="stale_recovery").inc()
                 logger.warning(
                     "stale_execution_recovered",
@@ -295,14 +307,15 @@ class Worker:
                 )
             await db.flush()
         return recovered
+
     async def _heartbeat_loop(self) -> None:
         redis = get_redis()
         try:
             while not self._shutdown.is_set():
                 try:
                     await heartbeat(redis, self._id)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("worker_heartbeat_failed", error=str(exc))
                 await asyncio.sleep(settings.worker_heartbeat_interval)
         finally:
             await redis.aclose()
@@ -313,9 +326,7 @@ class Worker:
 
 async def run_workers() -> None:
     """Launch WORKER_CONCURRENCY workers and handle graceful shutdown."""
-    worker_ids = [
-        f"{settings.worker_id}-{i}" for i in range(settings.worker_concurrency)
-    ]
+    worker_ids = [f"{settings.worker_id}-{i}" for i in range(settings.worker_concurrency)]
     workers = [Worker(wid) for wid in worker_ids]
 
     loop = asyncio.get_running_loop()
@@ -343,7 +354,7 @@ async def run_workers() -> None:
             asyncio.gather(*tasks, return_exceptions=True),
             timeout=settings.worker_shutdown_timeout,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("worker_shutdown_timeout_exceeded")
         for task in tasks:
             task.cancel()
@@ -351,4 +362,3 @@ async def run_workers() -> None:
 
 if __name__ == "__main__":
     asyncio.run(run_workers())
-

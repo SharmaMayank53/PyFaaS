@@ -7,12 +7,13 @@ creates Execution records, and enqueues them on Redis.
 Uses a distributed lock to ensure only one scheduler instance
 fires a given schedule at a time (safe to run multiple replicas).
 """
+
 from __future__ import annotations
 
 import asyncio
 import signal
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import cast
 
 from croniter import croniter
 from sqlalchemy import select
@@ -20,8 +21,8 @@ from sqlalchemy import select
 from shared.config import get_settings
 from shared.db.models import Execution, ExecutionStatus, Schedule, ScheduleStatus
 from shared.db.session import get_db_context
-from shared.observability.logging import configure_logging, get_logger
 from shared.execution.version_routing import choose_execution_version
+from shared.observability.logging import configure_logging, get_logger
 from shared.queue.redis_client import DistributedLock, enqueue_job, get_redis
 
 settings = get_settings()
@@ -54,7 +55,7 @@ class Scheduler:
                     self._shutdown.wait(),
                     timeout=settings.scheduler_poll_interval,
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 pass
 
         logger.info("scheduler_stopped")
@@ -62,7 +63,9 @@ class Scheduler:
     async def _tick(self) -> None:
         redis = get_redis()
         try:
-            async with DistributedLock(redis, SCHEDULER_LOCK, timeout=SCHEDULER_LOCK_TTL) as acquired:
+            async with DistributedLock(
+                redis, SCHEDULER_LOCK, timeout=SCHEDULER_LOCK_TTL
+            ) as acquired:
                 if not acquired:
                     logger.debug("scheduler_lock_not_acquired")
                     return
@@ -71,7 +74,7 @@ class Scheduler:
             await redis.aclose()
 
     async def _process_due_schedules(self) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         async with get_db_context() as db:
             result = await db.execute(
@@ -99,13 +102,11 @@ class Scheduler:
                 )
 
     async def _fire_schedule(self, schedule: Schedule) -> None:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         async with get_db_context() as db:
             # Re-fetch with lock to prevent double-firing
-            result = await db.execute(
-                select(Schedule).where(Schedule.id == schedule.id)
-            )
+            result = await db.execute(select(Schedule).where(Schedule.id == schedule.id))
             fresh = result.scalar_one_or_none()
             if fresh is None or fresh.status != ScheduleStatus.ACTIVE:
                 return
@@ -115,9 +116,7 @@ class Scheduler:
             # Load function version
             from shared.db.models import Function
 
-            fn_result = await db.execute(
-                select(Function).where(Function.id == fresh.function_id)
-            )
+            fn_result = await db.execute(select(Function).where(Function.id == fresh.function_id))
             fn = fn_result.scalar_one_or_none()
             if fn is None:
                 logger.warning(
@@ -210,7 +209,7 @@ class Scheduler:
 
 
 def _compute_next(cron_expr: str, base: datetime) -> datetime:
-    return croniter(cron_expr, base).get_next(datetime)
+    return cast(datetime, croniter(cron_expr, base).get_next(datetime))
 
 
 if __name__ == "__main__":

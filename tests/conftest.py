@@ -1,10 +1,11 @@
 """
 SOPM - Test Configuration and Fixtures
 """
+
 from __future__ import annotations
 
 import uuid
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -71,9 +72,7 @@ async def app(db_session: AsyncSession) -> FastAPI:
 
 @pytest_asyncio.fixture(scope="function")
 async def client(app: FastAPI) -> AsyncGenerator[AsyncClient, None]:
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
 

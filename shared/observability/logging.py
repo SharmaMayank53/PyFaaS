@@ -4,11 +4,12 @@ SOPM - Structured Logging
 Configures structlog with JSON output for production and
 human-readable output for development.
 """
+
 from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from typing import Any, cast
 
 import structlog
 
@@ -28,6 +29,7 @@ def configure_logging() -> None:
         structlog.processors.format_exc_info,
     ]
 
+    renderer: structlog.processors.JSONRenderer | structlog.dev.ConsoleRenderer
     if settings.log_format == "json":
         renderer = structlog.processors.JSONRenderer()
     else:
@@ -65,4 +67,4 @@ def configure_logging() -> None:
 
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
-    return structlog.get_logger(name)
+    return cast(structlog.stdlib.BoundLogger, structlog.get_logger(name))

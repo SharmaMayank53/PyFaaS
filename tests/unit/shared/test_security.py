@@ -1,4 +1,5 @@
 """Tests for the AST-based code security validator."""
+
 from __future__ import annotations
 
 import io
@@ -146,5 +147,5 @@ class TestStateTransitions:
             ExecutionStatus.TIMED_OUT,
             ExecutionStatus.CANCELLED,
         ):
-            with pytest.raises(ValueError):
+            with pytest.raises(ValueError, match="Invalid state transition"):
                 validate_transition(terminal, ExecutionStatus.RUNNING)

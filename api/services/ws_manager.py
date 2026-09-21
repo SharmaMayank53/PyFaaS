@@ -4,14 +4,16 @@ SOPM - WebSocket Connection Manager
 Manages dashboard WebSocket connections and broadcasts events.
 Lightweight: in-process pub/sub, no external broker needed.
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
+
 from shared.observability.logging import get_logger
 
 logger = get_logger(__name__)
@@ -43,11 +45,13 @@ class ConnectionManager:
         if not self._connections:
             return
 
-        message = json.dumps({
-            "type": event_type,
-            "payload": payload,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        message = json.dumps(
+            {
+                "type": event_type,
+                "payload": payload,
+                "timestamp": datetime.now(UTC).isoformat(),
+            }
+        )
 
         dead: set[WebSocket] = set()
         async with self._lock:
@@ -58,7 +62,7 @@ class ConnectionManager:
             return_exceptions=True,
         )
 
-        for ws, result in zip(connections, results):
+        for ws, result in zip(connections, results, strict=True):
             if isinstance(result, Exception):
                 dead.add(ws)
 
@@ -83,36 +87,54 @@ manager = ConnectionManager()
 # ---------------------------------------------------------------------------
 
 
-async def emit_execution_started(execution_id: str, function_name: str | None, worker_id: str | None) -> None:
-    await manager.broadcast("execution_started", {
-        "execution_id": execution_id,
-        "function_name": function_name,
-        "worker_id": worker_id,
-    })
+async def emit_execution_started(
+    execution_id: str, function_name: str | None, worker_id: str | None
+) -> None:
+    await manager.broadcast(
+        "execution_started",
+        {
+            "execution_id": execution_id,
+            "function_name": function_name,
+            "worker_id": worker_id,
+        },
+    )
 
 
-async def emit_execution_completed(execution_id: str, function_name: str | None, duration_ms: int | None, status: str) -> None:
-    await manager.broadcast("execution_completed", {
-        "execution_id": execution_id,
-        "function_name": function_name,
-        "duration_ms": duration_ms,
-        "status": status,
-    })
+async def emit_execution_completed(
+    execution_id: str, function_name: str | None, duration_ms: int | None, status: str
+) -> None:
+    await manager.broadcast(
+        "execution_completed",
+        {
+            "execution_id": execution_id,
+            "function_name": function_name,
+            "duration_ms": duration_ms,
+            "status": status,
+        },
+    )
 
 
-async def emit_execution_failed(execution_id: str, function_name: str | None, error: str | None) -> None:
-    await manager.broadcast("execution_failed", {
-        "execution_id": execution_id,
-        "function_name": function_name,
-        "error": error,
-    })
+async def emit_execution_failed(
+    execution_id: str, function_name: str | None, error: str | None
+) -> None:
+    await manager.broadcast(
+        "execution_failed",
+        {
+            "execution_id": execution_id,
+            "function_name": function_name,
+            "error": error,
+        },
+    )
 
 
 async def emit_deployment(function_name: str, version_number: int, status: str) -> None:
-    await manager.broadcast(f"deployment_{status}", {
-        "function_name": function_name,
-        "version_number": version_number,
-    })
+    await manager.broadcast(
+        f"deployment_{status}",
+        {
+            "function_name": function_name,
+            "version_number": version_number,
+        },
+    )
 
 
 async def emit_worker_status(worker_id: str, status: str) -> None:

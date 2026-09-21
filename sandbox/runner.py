@@ -1,4 +1,4 @@
-﻿"""
+"""
 SOPM Runner
 
 This script runs INSIDE the sandbox container (not in the main platform).
@@ -8,6 +8,7 @@ and writes the result to stdout as SOPM_RESULT:<json>.
 It is intentionally minimal â€” no FastAPI, no SQLAlchemy.
 All output is via print() to stdout; collected by the worker via pod logs.
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -15,7 +16,9 @@ import inspect
 import json
 import os
 import shutil
-import subprocess
+
+# Runner installs function dependencies without a shell.
+import subprocess  # nosec B404
 import sys
 import time
 import traceback
@@ -53,7 +56,6 @@ def _write_inline_source(work_dir: Path, entrypoint: str, source_code: str) -> N
     source_path.write_text(source_code, encoding="utf-8")
 
 
-
 def _install_requirements_if_needed(work_dir: Path, deps_dir: Path, timeout: int) -> None:
     requirements = work_dir / "requirements.txt"
     if not requirements.exists():
@@ -68,8 +70,9 @@ def _install_requirements_if_needed(work_dir: Path, deps_dir: Path, timeout: int
         shutil.rmtree(deps_dir)
     deps_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"[sopm-runner] installing dependencies from requirements.txt", flush=True)
-    result = subprocess.run(
+    print("[sopm-runner] installing dependencies from requirements.txt", flush=True)
+    # Fixed interpreter and pip arguments; execution occurs inside the sandbox.
+    result = subprocess.run(  # noqa: S603  # nosec B603
         [
             sys.executable,
             "-m",
@@ -93,6 +96,7 @@ def _install_requirements_if_needed(work_dir: Path, deps_dir: Path, timeout: int
 
     marker.write_text(str(time.time()), encoding="utf-8")
     sys.path.insert(0, str(deps_dir))
+
 
 def _load_handler(work_dir: Path, entrypoint: str) -> Any:
     """
@@ -155,19 +159,34 @@ def main() -> int:
         try:
             _write_inline_source(work_dir, entrypoint, source_code)
         except Exception as exc:
-            print(f"[sopm-runner] ERROR: inline source write failed: {exc}", flush=True, file=sys.stderr)
+            print(
+                f"[sopm-runner] ERROR: inline source write failed: {exc}",
+                flush=True,
+                file=sys.stderr,
+            )
             _emit_result({"error": f"inline source write failed: {exc}", "success": False})
             return 1
     elif not extracted_marker.exists():
         if not artifact_path:
-            print("[sopm-runner] ERROR: SOPM_ARTIFACT_PATH is required without SOPM_SOURCE_CODE", flush=True, file=sys.stderr)
-            _emit_result({"error": "SOPM_ARTIFACT_PATH is required without SOPM_SOURCE_CODE", "success": False})
+            print(
+                "[sopm-runner] ERROR: SOPM_ARTIFACT_PATH is required without SOPM_SOURCE_CODE",
+                flush=True,
+                file=sys.stderr,
+            )
+            _emit_result(
+                {
+                    "error": "SOPM_ARTIFACT_PATH is required without SOPM_SOURCE_CODE",
+                    "success": False,
+                }
+            )
             return 1
         print(f"[sopm-runner] downloading artifact: {artifact_path}", flush=True)
         try:
             _download_artifact(artifact_path, archive_path)
         except Exception as exc:
-            print(f"[sopm-runner] ERROR: artifact download failed: {exc}", flush=True, file=sys.stderr)
+            print(
+                f"[sopm-runner] ERROR: artifact download failed: {exc}", flush=True, file=sys.stderr
+            )
             _emit_result({"error": f"artifact download failed: {exc}", "success": False})
             return 1
 
@@ -175,7 +194,11 @@ def main() -> int:
             _extract_archive(archive_path, work_dir)
             extracted_marker.write_text(str(time.time()), encoding="utf-8")
         except Exception as exc:
-            print(f"[sopm-runner] ERROR: archive extraction failed: {exc}", flush=True, file=sys.stderr)
+            print(
+                f"[sopm-runner] ERROR: archive extraction failed: {exc}",
+                flush=True,
+                file=sys.stderr,
+            )
             _emit_result({"error": f"archive extraction failed: {exc}", "success": False})
             return 1
     else:
@@ -188,7 +211,13 @@ def main() -> int:
         _install_requirements_if_needed(work_dir, deps_dir, timeout)
     except Exception as exc:
         print(f"[sopm-runner] ERROR: dependency install failed: {exc}", flush=True, file=sys.stderr)
-        _emit_result({"error": f"dependency install failed: {exc}", "success": False, "phase": "dependency_install"})
+        _emit_result(
+            {
+                "error": f"dependency install failed: {exc}",
+                "success": False,
+                "phase": "dependency_install",
+            }
+        )
         return 1
 
     try:
@@ -222,8 +251,7 @@ def main() -> int:
         positional = [
             p
             for p in signature.parameters.values()
-            if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
-            and p.default is p.empty
+            if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD) and p.default is p.empty
         ]
         has_varargs = any(p.kind == p.VAR_POSITIONAL for p in signature.parameters.values())
 
@@ -259,6 +287,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-
-
-

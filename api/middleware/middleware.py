@@ -4,6 +4,7 @@ SOPM - Middleware
 1. RequestIDMiddleware  — attaches X-Request-ID to every request/response
 2. MetricsMiddleware    — records Prometheus HTTP metrics
 """
+
 from __future__ import annotations
 
 import time

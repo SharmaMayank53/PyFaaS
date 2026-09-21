@@ -1,9 +1,11 @@
 """
 SOPM - Health & Metrics Router
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import APIRouter, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -18,12 +20,12 @@ logger = get_logger(__name__)
 
 
 @router.get("/health", summary="Liveness probe")
-async def health() -> dict:
-    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+async def health() -> dict[str, str]:
+    return {"status": "ok", "timestamp": datetime.now(UTC).isoformat()}
 
 
 @router.get("/ready", summary="Readiness probe — checks all dependencies")
-async def ready() -> dict:
+async def ready() -> dict[str, Any]:
     checks: dict[str, str] = {}
     overall = "healthy"
 
@@ -50,7 +52,7 @@ async def ready() -> dict:
         "status": overall,
         "version": "0.1.0",
         "checks": checks,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 

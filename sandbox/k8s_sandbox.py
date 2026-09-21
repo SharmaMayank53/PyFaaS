@@ -1,16 +1,17 @@
-﻿"""
+"""
 SOPM - Kubernetes Sandbox
 
 Creates and monitors Kubernetes Jobs to execute user functions in
 gVisor-isolated containers with strict security policies.
 """
+
 from __future__ import annotations
 
 import asyncio
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
@@ -74,9 +75,7 @@ class KubernetesSandbox:
             await asyncio.get_event_loop().run_in_executor(
                 None, self._create_job, job_name, job_spec
             )
-            logger.info(
-                "k8s_job_created", job_name=job_name, execution_id=execution_id
-            )
+            logger.info("k8s_job_created", job_name=job_name, execution_id=execution_id)
 
             result = await self._wait_for_job(job_name, timeout)
             result.k8s_job_name = job_name
@@ -99,11 +98,9 @@ class KubernetesSandbox:
         finally:
             # Best-effort cleanup
             try:
-                await asyncio.get_event_loop().run_in_executor(
-                    None, self._delete_job, job_name
-                )
-            except Exception:
-                pass
+                await asyncio.get_event_loop().run_in_executor(None, self._delete_job, job_name)
+            except Exception as exc:
+                logger.warning("job_cleanup_failed", job_name=job_name, error=str(exc))
 
     def _ensure_runtime_class(self) -> None:
         """Fail closed if the configured gVisor RuntimeClass is not registered."""
@@ -118,7 +115,10 @@ class KubernetesSandbox:
             if exc.status == 404:
                 raise ApiException(
                     status=404,
-                    reason=f"RuntimeClass '{runtime_class}' is not registered; install gVisor/runsc first",
+                    reason=(
+                        f"RuntimeClass '{runtime_class}' is not registered; "
+                        "install gVisor/runsc first"
+                    ),
                 ) from exc
             raise
         self._runtime_class_checked = True
@@ -147,9 +147,10 @@ class KubernetesSandbox:
             client.V1EnvVar(name="SOPM_ENTRYPOINT", value=job_spec["entrypoint"]),
             client.V1EnvVar(name="SOPM_PAYLOAD", value=json.dumps(job_spec.get("payload", {}))),
             client.V1EnvVar(name="SOPM_TIMEOUT", value=str(job_spec.get("timeout", 300))),
-            client.V1EnvVar(name="HOME", value="/tmp"),
-            client.V1EnvVar(name="PIP_CACHE_DIR", value="/tmp/pip-cache"),
-            client.V1EnvVar(name="PYTHONPYCACHEPREFIX", value="/tmp/pycache"),
+            # Container-local scratch path; sandbox pods mount a private emptyDir.
+            client.V1EnvVar(name="HOME", value="/tmp"),  # noqa: S108  # nosec B108
+            client.V1EnvVar(name="PIP_CACHE_DIR", value="/tmp/pip-cache"),  # noqa: S108  # nosec B108
+            client.V1EnvVar(name="PYTHONPYCACHEPREFIX", value="/tmp/pycache"),  # noqa: S108  # nosec B108
             # MinIO config for artifact download
             client.V1EnvVar(
                 name="MINIO_ENDPOINT",
@@ -224,7 +225,7 @@ class KubernetesSandbox:
             resources=resources,
             security_context=security_context,
             volume_mounts=[
-                client.V1VolumeMount(name="tmp", mount_path="/tmp"),
+                client.V1VolumeMount(name="tmp", mount_path="/tmp"),  # noqa: S108  # nosec B108
                 client.V1VolumeMount(name="work", mount_path="/work"),
             ],
         )
@@ -292,9 +293,7 @@ class KubernetesSandbox:
         while time.monotonic() < deadline:
             job = await asyncio.get_event_loop().run_in_executor(
                 None,
-                lambda: self._batch.read_namespaced_job(
-                    name=job_name, namespace=self._namespace
-                ),
+                lambda: self._batch.read_namespaced_job(name=job_name, namespace=self._namespace),
             )
 
             if job.status.succeeded:
@@ -318,7 +317,7 @@ class KubernetesSandbox:
             error="Worker-side timeout waiting for Kubernetes Job",
         )
 
-    async def _get_pods_for_job(self, job_name: str):
+    async def _get_pods_for_job(self, job_name: str) -> Any:
         return await asyncio.get_event_loop().run_in_executor(
             None,
             lambda: self._core.list_namespaced_pod(
@@ -343,7 +342,7 @@ class KubernetesSandbox:
         try:
             pods = await self._get_pods_for_job(job_name)
             for pod in pods.items:
-                for status in (pod.status.container_statuses or []):
+                for status in pod.status.container_statuses or []:
                     terminated = status.state.terminated if status.state else None
                     if terminated and terminated.reason == "OOMKilled":
                         return SandboxResult(
@@ -396,7 +395,7 @@ class KubernetesSandbox:
         for line in reversed(logs.splitlines()):
             if line.startswith("SOPM_RESULT:"):
                 try:
-                    return json.loads(line[len("SOPM_RESULT:"):])
+                    return cast(dict[str, Any], json.loads(line[len("SOPM_RESULT:") :]))
                 except json.JSONDecodeError:
                     pass
         return None
@@ -421,17 +420,7 @@ class KubernetesSandbox:
         Local execution mode (sandbox_enabled=false).
         Used for integration testing only â€” NOT for production.
         """
-        logger.warning(
-            "local_execution_mode",
-            execution_id=job_spec["execution_id"],
-            message="SANDBOX DISABLED â€” running code locally. Production use requires sandbox.",
-        )
-        return SandboxResult(
-            success=True,
-            result={"message": "local execution (sandbox disabled)"},
-            logs=[{"level": "WARN", "stream": "stdout", "message": "sandbox disabled"}],
-            duration_ms=0,
-        )
+        return await _docker_local_execute(self, job_spec)
 
 
 async def _docker_local_execute(self: KubernetesSandbox, job_spec: dict[str, Any]) -> SandboxResult:
@@ -454,22 +443,24 @@ async def _docker_local_execute(self: KubernetesSandbox, job_spec: dict[str, Any
         message="SANDBOX DISABLED - running code in the worker container.",
     )
 
+    # Development-only worker-container paths. Version caches intentionally persist
+    # between trusted executions; this mode is explicitly not an isolation boundary.
     env = os.environ.copy()
     env.update(
         {
             "SOPM_EXECUTION_ID": job_spec["execution_id"],
             "SOPM_ARTIFACT_PATH": job_spec.get("artifact_path", ""),
-                "SOPM_ENTRYPOINT": job_spec.get("entrypoint", "handler.handler"),
-                "SOPM_PAYLOAD": json.dumps(job_spec.get("payload", {})),
-                "SOPM_TIMEOUT": str(timeout),
-                "SOPM_WORK_DIR": f"/tmp/sopm-exec-{job_spec['execution_id']}",
-                "SOPM_VERSION_ID": str(job_spec.get("version_id", "unknown")),
-                "SOPM_CACHE_DIR": f"/tmp/sopm-cache-{job_spec.get('version_id', 'unknown')}",
-                "HOME": "/tmp",
-                "PIP_CACHE_DIR": "/tmp/pip-cache",
-                "PYTHONPYCACHEPREFIX": "/tmp/pycache",
-            }
-        )
+            "SOPM_ENTRYPOINT": job_spec.get("entrypoint", "handler.handler"),
+            "SOPM_PAYLOAD": json.dumps(job_spec.get("payload", {})),
+            "SOPM_TIMEOUT": str(timeout),
+            "SOPM_WORK_DIR": f"/tmp/sopm-exec-{job_spec['execution_id']}",  # noqa: S108  # nosec B108
+            "SOPM_VERSION_ID": str(job_spec.get("version_id", "unknown")),
+            "SOPM_CACHE_DIR": f"/tmp/sopm-cache-{job_spec.get('version_id', 'unknown')}",  # noqa: S108  # nosec B108
+            "HOME": "/tmp",  # noqa: S108  # nosec B108
+            "PIP_CACHE_DIR": "/tmp/pip-cache",  # noqa: S108  # nosec B108
+            "PYTHONPYCACHEPREFIX": "/tmp/pycache",  # noqa: S108  # nosec B108
+        }
+    )
     if job_spec.get("source_code") is not None:
         env["SOPM_SOURCE_CODE"] = str(job_spec["source_code"])
         env.pop("SOPM_CACHE_DIR", None)
@@ -488,7 +479,7 @@ async def _docker_local_execute(self: KubernetesSandbox, job_spec: dict[str, Any
 
     try:
         stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout + 5)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         proc.kill()
         stdout, _ = await proc.communicate()
         raw_logs = stdout.decode(errors="replace")
@@ -518,8 +509,3 @@ async def _docker_local_execute(self: KubernetesSandbox, job_spec: dict[str, Any
         logs=self._format_logs(raw_logs),
         duration_ms=int(time.monotonic() * 1000) - start_ms,
     )
-
-
-KubernetesSandbox._local_execute = _docker_local_execute
-
-

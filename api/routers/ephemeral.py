@@ -1,9 +1,10 @@
-﻿"""Ephemeral raw-code execution endpoint for agent-facing use cases."""
+"""Ephemeral raw-code execution endpoint for agent-facing use cases."""
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Annotated, Any, Literal
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import Field, field_validator
@@ -66,14 +67,18 @@ async def _enforce_ephemeral_gate() -> None:
     if settings.ephemeral_local_execution_enabled:
         logger.warning(
             "ephemeral_local_execution_enabled",
-            message="SANDBOX_ENABLED=false and EPHEMERAL_LOCAL_EXECUTION_ENABLED=true; raw code runs in the worker container.",
+            message=(
+                "SANDBOX_ENABLED=false and EPHEMERAL_LOCAL_EXECUTION_ENABLED=true; "
+                "raw code runs in the worker container."
+            ),
         )
         return
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail=(
             "Ephemeral raw-code execution requires SANDBOX_ENABLED=true. "
-            "For local-only testing set EPHEMERAL_LOCAL_EXECUTION_ENABLED=true, but do not use that mode for untrusted code."
+            "For local-only testing set EPHEMERAL_LOCAL_EXECUTION_ENABLED=true, "
+            "but do not use that mode for untrusted code."
         ),
     )
 
@@ -83,14 +88,17 @@ async def _enforce_rate_limits(
     redis: Any,
     principal: ApiKeyPrincipal,
 ) -> None:
-    rate_key = f"sopm:ephemeral:rate:{principal.key.id}:{datetime.now(timezone.utc):%Y%m%d%H%M}"
+    rate_key = f"sopm:ephemeral:rate:{principal.key.id}:{datetime.now(UTC):%Y%m%d%H%M}"
     count = await redis.incr(rate_key)
     if count == 1:
         await redis.expire(rate_key, 120)
     if count > settings.ephemeral_rate_limit_per_minute:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Ephemeral execution rate limit exceeded ({settings.ephemeral_rate_limit_per_minute}/minute)",
+            detail=(
+                "Ephemeral execution rate limit exceeded "
+                f"({settings.ephemeral_rate_limit_per_minute}/minute)"
+            ),
         )
 
     active_count = (
@@ -107,11 +115,16 @@ async def _enforce_rate_limits(
     if active_count >= settings.ephemeral_concurrency_limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Ephemeral execution concurrency limit exceeded ({settings.ephemeral_concurrency_limit})",
+            detail=(
+                "Ephemeral execution concurrency limit exceeded "
+                f"({settings.ephemeral_concurrency_limit})"
+            ),
         )
 
 
-@router.post("/execute-ephemeral", response_model=ExecutionResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/execute-ephemeral", response_model=ExecutionResponse, status_code=status.HTTP_202_ACCEPTED
+)
 async def execute_ephemeral(
     body: EphemeralExecutionRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -133,7 +146,7 @@ async def execute_ephemeral(
             execution_type="ephemeral",
             status=ExecutionStatus.QUEUED,
             payload=body.event,
-            queued_at=datetime.now(timezone.utc),
+            queued_at=datetime.now(UTC),
             timeout=body.timeout,
         )
         db.add(execution)

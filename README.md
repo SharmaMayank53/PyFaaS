@@ -149,14 +149,13 @@ Zip the file and upload it from the dashboard's Functions page.
 Supported handler styles:
 
 ```python
-def handler():
-    ...
+def handler(): ...
 
-def handler(event):
-    ...
 
-def handler(event, context):
-    ...
+def handler(event): ...
+
+
+def handler(event, context): ...
 ```
 
 ## Results and Logs

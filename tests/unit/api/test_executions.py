@@ -1,12 +1,12 @@
 """Tests for execution endpoints."""
+
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from datetime import UTC
 
-import pytest
 from httpx import AsyncClient
 
-from shared.db.models import Function, FunctionVersion, User
+from shared.db.models import Function, FunctionVersion
 
 
 class TestTriggerExecution:
@@ -76,9 +76,7 @@ class TestTriggerExecution:
 
 
 class TestListExecutions:
-    async def test_list_empty(
-        self, client: AsyncClient, auth_headers: dict
-    ) -> None:
+    async def test_list_empty(self, client: AsyncClient, auth_headers: dict) -> None:
         resp = await client.get("/api/v1/executions", headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["total"] == 0
@@ -99,7 +97,7 @@ class TestCancelExecution:
         db_session,
     ) -> None:
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from shared.db.models import Execution, ExecutionStatus
 
@@ -111,14 +109,12 @@ class TestCancelExecution:
             status=ExecutionStatus.QUEUED,
             payload={},
             timeout=300,
-            queued_at=datetime.now(timezone.utc),
+            queued_at=datetime.now(UTC),
         )
         db_session.add(ex)
         await db_session.commit()
 
-        resp = await client.delete(
-            f"/api/v1/executions/{ex.id}", headers=auth_headers
-        )
+        resp = await client.delete(f"/api/v1/executions/{ex.id}", headers=auth_headers)
         assert resp.status_code == 204
 
     async def test_cancel_completed_fails(
@@ -131,7 +127,7 @@ class TestCancelExecution:
         db_session,
     ) -> None:
         import uuid
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from shared.db.models import Execution, ExecutionStatus
 
@@ -142,13 +138,11 @@ class TestCancelExecution:
             status=ExecutionStatus.COMPLETED,
             payload={},
             timeout=300,
-            queued_at=datetime.now(timezone.utc),
-            completed_at=datetime.now(timezone.utc),
+            queued_at=datetime.now(UTC),
+            completed_at=datetime.now(UTC),
         )
         db_session.add(ex)
         await db_session.commit()
 
-        resp = await client.delete(
-            f"/api/v1/executions/{ex.id}", headers=auth_headers
-        )
+        resp = await client.delete(f"/api/v1/executions/{ex.id}", headers=auth_headers)
         assert resp.status_code == 409

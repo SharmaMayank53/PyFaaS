@@ -11,13 +11,16 @@ Endpoints:
   GET  /api/v1/metrics/deployments- Deployment metrics
   WS   /ws/dashboard              - Real-time event stream
 """
+
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timezone
-from typing import Annotated
+from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies.deps import get_current_user
@@ -37,7 +40,7 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 
 
-async def get_redis_dep():
+async def get_redis_dep() -> AsyncGenerator[Redis, None]:
     redis = get_redis()
     try:
         yield redis
@@ -54,18 +57,23 @@ async def get_redis_dep():
 async def get_dashboard(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
-):
+) -> dict[str, Any]:
     redis = get_redis()
     try:
-        overview, health, recent_execs, recent_failures, recent_deploys, exec_metrics = (
-            await asyncio.gather(
-                svc.get_overview(db, redis),
-                svc.get_health(db, redis, detailed=False),
-                svc.get_recent_executions(db, limit=10),
-                svc.get_recent_failures(db, limit=10),
-                svc.get_recent_deployments(db, limit=10),
-                svc.get_execution_metrics(db),
-            )
+        (
+            overview,
+            health,
+            recent_execs,
+            recent_failures,
+            recent_deploys,
+            exec_metrics,
+        ) = await asyncio.gather(
+            svc.get_overview(db, redis),
+            svc.get_health(db, redis, detailed=False),
+            svc.get_recent_executions(db, limit=10),
+            svc.get_recent_failures(db, limit=10),
+            svc.get_recent_deployments(db, limit=10),
+            svc.get_execution_metrics(db),
         )
     finally:
         await redis.aclose()
@@ -91,7 +99,7 @@ async def get_dashboard(
             "p95_runtime_ms": exec_metrics["p95_runtime_ms"],
             "p99_runtime_ms": exec_metrics["p99_runtime_ms"],
         },
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
     }
 
 
@@ -101,14 +109,14 @@ async def get_dashboard(
 
 
 @router.get("/health", summary="Liveness probe", tags=["Health"])
-async def health_simple():
-    return {"status": "ok", "timestamp": datetime.now(timezone.utc).isoformat()}
+async def health_simple() -> dict[str, str]:
+    return {"status": "ok", "timestamp": datetime.now(UTC).isoformat()}
 
 
 @router.get("/health/detailed", summary="Full dependency health check", tags=["Health"])
 async def health_detailed(
     db: Annotated[AsyncSession, Depends(get_db)],
-):
+) -> dict[str, Any]:
     redis = get_redis()
     try:
         health = await svc.get_health(db, redis, detailed=True)
@@ -126,14 +134,14 @@ async def health_detailed(
 async def metrics_executions(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
-):
+) -> dict[str, Any]:
     return await svc.get_execution_metrics(db)
 
 
 @router.get("/metrics/workers", summary="Worker availability and heartbeat status")
 async def metrics_workers(
     _: Annotated[User, Depends(get_current_user)],
-):
+) -> dict[str, Any]:
     redis = get_redis()
     try:
         return await svc.get_worker_metrics(redis)
@@ -144,7 +152,7 @@ async def metrics_workers(
 @router.get("/metrics/queue", summary="Queue depth and throughput")
 async def metrics_queue(
     _: Annotated[User, Depends(get_current_user)],
-):
+) -> dict[str, Any]:
     redis = get_redis()
     try:
         return await svc.get_queue_metrics(redis)
@@ -156,7 +164,7 @@ async def metrics_queue(
 async def metrics_deployments(
     db: Annotated[AsyncSession, Depends(get_db)],
     _: Annotated[User, Depends(get_current_user)],
-):
+) -> dict[str, Any]:
     return await svc.get_deployment_metrics(db)
 
 
@@ -166,7 +174,7 @@ async def metrics_deployments(
 
 
 @router.websocket("/ws/dashboard")
-async def ws_dashboard(ws: WebSocket):
+async def ws_dashboard(ws: WebSocket) -> None:
     """
     Real-time dashboard event stream.
 
@@ -185,7 +193,7 @@ async def ws_dashboard(ws: WebSocket):
                 data = await asyncio.wait_for(ws.receive_text(), timeout=30.0)
                 if data == "ping":
                     await ws.send_text('{"type":"pong"}')
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Send server-side keepalive
                 await ws.send_text('{"type":"keepalive"}')
     except WebSocketDisconnect:

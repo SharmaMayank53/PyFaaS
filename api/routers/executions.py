@@ -1,18 +1,20 @@
-﻿"""
+"""
 SOPM - Executions Router
 
 Endpoints: POST /functions/{id}/execute, GET /executions, GET /executions/{id},
            GET /executions/{id}/logs, DELETE /executions/{id} (cancel)
 """
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from api.dependencies.deps import get_current_user, pagination_params
 from api.schemas.schemas import (
@@ -45,7 +47,7 @@ TERMINAL_STATUSES = {
 }
 
 
-def _execution_owner_clause(current_user: User):
+def _execution_owner_clause(current_user: User) -> ColumnElement[bool]:
     return or_(Function.owner_id == current_user.id, Execution.triggered_by == current_user.id)
 
 
@@ -87,7 +89,7 @@ async def trigger_execution(
         execution_type="function",
         status=ExecutionStatus.QUEUED,
         payload=body.payload,
-        queued_at=datetime.now(timezone.utc),
+        queued_at=datetime.now(UTC),
         timeout=timeout,
     )
     db.add(execution)
@@ -149,8 +151,10 @@ async def list_executions(
     offset, limit = pagination
     page = offset // limit + 1
 
-    base = select(Execution).outerjoin(Function, Execution.function_id == Function.id).where(
-        _execution_owner_clause(current_user)
+    base = (
+        select(Execution)
+        .outerjoin(Function, Execution.function_id == Function.id)
+        .where(_execution_owner_clause(current_user))
     )
     count_base = (
         select(func.count())
@@ -176,8 +180,10 @@ async def list_executions(
 
     total = (await db.execute(count_base)).scalar_one()
     executions = (
-        await db.execute(base.order_by(Execution.created_at.desc()).offset(offset).limit(limit))
-    ).scalars().all()
+        (await db.execute(base.order_by(Execution.created_at.desc()).offset(offset).limit(limit)))
+        .scalars()
+        .all()
+    )
 
     return ExecutionListResponse(
         items=[ExecutionResponse.model_validate(e) for e in executions],

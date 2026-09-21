@@ -3,6 +3,7 @@ SOPM - Database Session Management
 
 Provides async SQLAlchemy engine and session factory.
 """
+
 from __future__ import annotations
 
 from collections.abc import AsyncGenerator
@@ -21,10 +22,14 @@ settings = get_settings()
 # SQLite (test) doesn't support pool_size / max_overflow
 _is_sqlite = settings.database_url.startswith("sqlite")
 
-_engine_kwargs = {} if _is_sqlite else dict(
-    pool_size=settings.database_pool_size,
-    max_overflow=settings.database_max_overflow,
-    pool_timeout=settings.database_pool_timeout,
+_engine_kwargs = (
+    {}
+    if _is_sqlite
+    else {
+        "pool_size": settings.database_pool_size,
+        "max_overflow": settings.database_max_overflow,
+        "pool_timeout": settings.database_pool_timeout,
+    }
 )
 
 engine = create_async_engine(

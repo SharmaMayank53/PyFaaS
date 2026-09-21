@@ -1,4 +1,5 @@
 """Execution-time version routing helpers."""
+
 from __future__ import annotations
 
 import secrets

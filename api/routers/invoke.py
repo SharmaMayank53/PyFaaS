@@ -1,15 +1,17 @@
-﻿"""External API-key invocation routes."""
+"""External API-key invocation routes."""
+
 from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from api.dependencies.api_keys import ApiKeyPrincipal, get_api_key_principal
 from api.schemas.schemas import (
@@ -38,8 +40,10 @@ TERMINAL_STATUSES = {
 }
 
 
-def _api_key_execution_owner_clause(principal: ApiKeyPrincipal):
-    return or_(Execution.api_key_id == principal.key.id, Execution.triggered_by == principal.user.id)
+def _api_key_execution_owner_clause(principal: ApiKeyPrincipal) -> ColumnElement[bool]:
+    return or_(
+        Execution.api_key_id == principal.key.id, Execution.triggered_by == principal.user.id
+    )
 
 
 @router.get("/functions", response_model=FunctionListResponse)
@@ -98,18 +102,24 @@ async def get_invoked_execution_logs(
 
     total = (
         await db.execute(
-            select(func.count()).select_from(ExecutionLog).where(ExecutionLog.execution_id == execution_id)
+            select(func.count())
+            .select_from(ExecutionLog)
+            .where(ExecutionLog.execution_id == execution_id)
         )
     ).scalar_one()
     logs = (
-        await db.execute(
-            select(ExecutionLog)
-            .where(ExecutionLog.execution_id == execution_id)
-            .order_by(ExecutionLog.sequence.asc(), ExecutionLog.timestamp.asc())
-            .offset(offset)
-            .limit(limit)
+        (
+            await db.execute(
+                select(ExecutionLog)
+                .where(ExecutionLog.execution_id == execution_id)
+                .order_by(ExecutionLog.sequence.asc(), ExecutionLog.timestamp.asc())
+                .offset(offset)
+                .limit(limit)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     return ExecutionLogResponse(
         execution_id=execution_id,
         logs=[
@@ -127,7 +137,9 @@ async def get_invoked_execution_logs(
     )
 
 
-@router.post("/{function_id}", response_model=ExecutionResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/{function_id}", response_model=ExecutionResponse, status_code=status.HTTP_202_ACCEPTED
+)
 async def invoke_function(
     function_id: uuid.UUID,
     body: InvokeRequest,
@@ -145,7 +157,10 @@ async def invoke_function(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Function not found")
     version = await choose_execution_version(db, fn)
     if version is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Function has no executable version")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Function has no executable version",
+        )
 
     execution = Execution(
         function_id=fn.id,
@@ -155,7 +170,7 @@ async def invoke_function(
         execution_type="function",
         status=ExecutionStatus.QUEUED,
         payload=body.payload,
-        queued_at=datetime.now(timezone.utc),
+        queued_at=datetime.now(UTC),
         timeout=version.timeout,
     )
     db.add(execution)

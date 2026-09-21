@@ -3,6 +3,7 @@ SOPM - Auth Router
 
 Endpoints: POST /register, POST /login, POST /refresh, GET /me
 """
+
 from __future__ import annotations
 
 from typing import Annotated
@@ -47,9 +48,7 @@ async def register(
 ) -> UserResponse:
     # Check uniqueness
     existing = await db.execute(
-        select(User).where(
-            (User.username == body.username) | (User.email == body.email)
-        )
+        select(User).where((User.username == body.username) | (User.email == body.email))
     )
     if existing.scalar_one_or_none():
         raise HTTPException(
@@ -122,8 +121,8 @@ async def refresh_token(
         user_id: str | None = payload.get("sub")
         if not user_id:
             raise credentials_exception
-    except JWTError:
-        raise credentials_exception
+    except JWTError as exc:
+        raise credentials_exception from exc
 
     import uuid as _uuid
 

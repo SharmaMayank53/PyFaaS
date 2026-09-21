@@ -69,7 +69,6 @@ dev = [
     "ruff>=0.4.7",
     "mypy>=1.10.0",
     "bandit>=1.7.9",
-    "types-redis>=4.6.0.20240417",
     "types-passlib>=1.7.7.20240327",
     "types-python-jose>=3.3.4.20240106",
 ]
@@ -78,14 +77,21 @@ dev = [
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-select = ["E", "F", "I", "N", "W", "UP", "ANN", "S", "B", "C4", "PT"]
-ignore = ["ANN101", "ANN102", "ANN401", "S101"]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "ANN", "S", "B", "C4", "PT"]
+ignore = ["ANN401", "S101"]
+
+[tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "ANN"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Query", "fastapi.File"]
 
 [tool.mypy]
 python_version = "3.12"
+# Production runners and CI use Linux (including SIGALRM-based execution timeouts).
+platform = "linux"
 strict = true
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]

@@ -4,20 +4,20 @@ SOPM - Dashboard Service
 Aggregates all operational metrics in a minimal number of DB/Redis queries.
 Designed for < 500ms response time on the /api/v1/dashboard endpoint.
 """
+
 from __future__ import annotations
 
 import asyncio
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from minio.error import S3Error
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from shared.db.models import Execution, ExecutionStatus, Function, FunctionStatus, FunctionVersion
 from shared.observability.logging import get_logger
-from shared.queue.redis_client import get_redis, queue_depth
+from shared.queue.redis_client import queue_depth
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ UNHEALTHY = "unhealthy"
 
 async def get_overview(db: AsyncSession, redis: Any) -> dict[str, Any]:
     """Single-query overview stats."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     since_24h = now - timedelta(hours=24)
 
     # All counts in one query via CASE WHEN aggregation
@@ -43,7 +43,9 @@ async def get_overview(db: AsyncSession, redis: Any) -> dict[str, Any]:
         SELECT
             COUNT(*) FILTER (WHERE status = 'RUNNING') AS running_executions,
             COUNT(*) FILTER (WHERE status = 'COMPLETED' AND created_at >= :since) AS successful_24h,
-            COUNT(*) FILTER (WHERE status IN ('FAILED','TIMED_OUT') AND created_at >= :since) AS failed_24h
+            COUNT(*) FILTER (
+                WHERE status IN ('FAILED','TIMED_OUT') AND created_at >= :since
+            ) AS failed_24h
         FROM executions
         WHERE created_at >= :since OR status IN ('RUNNING','QUEUED','PENDING')
         """),
@@ -104,13 +106,16 @@ async def check_redis(redis: Any) -> str:
 
 async def check_minio() -> str:
     try:
-        from shared.storage.artifact_storage import get_minio_client
         from shared.config import get_settings
+        from shared.storage.artifact_storage import get_minio_client
+
         settings = get_settings()
         client = get_minio_client()
         # Lightweight check — list buckets
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, lambda: client.bucket_exists(settings.minio_bucket_artifacts))
+        await loop.run_in_executor(
+            None, lambda: client.bucket_exists(settings.minio_bucket_artifacts)
+        )
         return HEALTHY
     except Exception as exc:
         logger.warning("health_minio_failed", error=str(exc))
@@ -119,12 +124,15 @@ async def check_minio() -> str:
 
 async def check_kubernetes() -> str:
     from shared.config import get_settings
+
     settings = get_settings()
     if not settings.sandbox_enabled:
         return HEALTHY
 
     try:
-        from kubernetes import client as k8s_client, config as k8s_config
+        from kubernetes import client as k8s_client
+        from kubernetes import config as k8s_config
+
         try:
             k8s_config.load_incluster_config()
         except Exception:
@@ -177,7 +185,7 @@ async def get_health(db: AsyncSession, redis: Any, detailed: bool = False) -> di
     else:
         overall = HEALTHY
 
-    return {"overall": overall, "components": statuses, "timestamp": datetime.now(timezone.utc).isoformat()}
+    return {"overall": overall, "components": statuses, "timestamp": datetime.now(UTC).isoformat()}
 
 
 # ---------------------------------------------------------------------------
@@ -293,7 +301,7 @@ async def get_recent_deployments(db: AsyncSession, limit: int = 10) -> list[dict
 
 async def get_execution_metrics(db: AsyncSession) -> dict[str, Any]:
     """Execution stats: success rate, avg/p95/p99 runtime, hourly trend."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     since_24h = now - timedelta(hours=24)
 
     # Aggregate stats
@@ -313,7 +321,7 @@ async def get_execution_metrics(db: AsyncSession) -> dict[str, Any]:
         """),
         {"since": since_24h},
     )
-    stats = stats_result.fetchone()
+    stats = stats_result.one()
 
     total = stats.total or 0
     completed = stats.completed or 0
@@ -370,13 +378,21 @@ async def get_worker_metrics(redis: Any) -> dict[str, Any]:
             worker_id = key.split(":")[2] if ":" in key else key
             last_seen = int(val) if val else 0
             age_s = now_ts - last_seen
-            workers.append({
-                "worker_id": worker_id,
-                "last_heartbeat": datetime.fromtimestamp(last_seen, tz=timezone.utc).isoformat() if last_seen else None,
-                "age_seconds": round(age_s, 1),
-                "status": "online" if age_s < 120 else "stale",
-            })
-        return {"workers": workers, "total": len(workers), "online": sum(1 for w in workers if w["status"] == "online")}
+            workers.append(
+                {
+                    "worker_id": worker_id,
+                    "last_heartbeat": datetime.fromtimestamp(last_seen, tz=UTC).isoformat()
+                    if last_seen
+                    else None,
+                    "age_seconds": round(age_s, 1),
+                    "status": "online" if age_s < 120 else "stale",
+                }
+            )
+        return {
+            "workers": workers,
+            "total": len(workers),
+            "online": sum(1 for w in workers if w["status"] == "online"),
+        }
     except Exception as exc:
         logger.warning("worker_metrics_failed", error=str(exc))
         return {"workers": [], "total": 0, "online": 0}
@@ -385,8 +401,9 @@ async def get_worker_metrics(redis: Any) -> dict[str, Any]:
 async def get_queue_metrics(redis: Any) -> dict[str, Any]:
     """Queue depth, processing depth, DLQ."""
     try:
-        from shared.queue.redis_client import QUEUE_NAME, PROCESSING_SET
         from shared.config import get_settings
+        from shared.queue.redis_client import PROCESSING_SET, QUEUE_NAME
+
         settings = get_settings()
 
         depth, processing, dlq = await asyncio.gather(
@@ -406,7 +423,7 @@ async def get_queue_metrics(redis: Any) -> dict[str, Any]:
 
 async def get_deployment_metrics(db: AsyncSession) -> dict[str, Any]:
     """Deployment frequency stats."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     since_7d = now - timedelta(days=7)
 
     result = await db.execute(

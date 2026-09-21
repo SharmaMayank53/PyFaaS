@@ -4,13 +4,14 @@ SOPM - Authentication Utilities
 JWT token creation/validation and password hashing.
 Uses bcrypt via passlib. Works with bcrypt >= 4.0.
 """
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import bcrypt as _bcrypt
-from jose import JWTError, jwt
+from jose import jwt
 
 from shared.config import get_settings
 
@@ -19,6 +20,7 @@ settings = get_settings()
 # ---------------------------------------------------------------------------
 # Password hashing (direct bcrypt — avoids passlib version skew issues)
 # ---------------------------------------------------------------------------
+
 
 def hash_password(password: str) -> str:
     """Hash a plaintext password with bcrypt."""
@@ -37,9 +39,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=settings.access_token_expire_minutes
-    )
+    expire = datetime.now(UTC) + timedelta(minutes=settings.access_token_expire_minutes)
     payload: dict[str, Any] = {"sub": subject, "exp": expire, "type": "access"}
     if extra:
         payload.update(extra)
@@ -47,7 +47,7 @@ def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> st
 
 
 def create_refresh_token(subject: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days)
+    expire = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
     payload: dict[str, Any] = {"sub": subject, "exp": expire, "type": "refresh"}
     return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
 

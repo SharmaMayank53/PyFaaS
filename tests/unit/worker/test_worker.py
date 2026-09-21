@@ -1,14 +1,12 @@
 """Tests for Worker job processing logic."""
+
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import pytest
-
-from shared.db.models import Execution, ExecutionStatus
 from sandbox.k8s_sandbox import SandboxResult
+from shared.db.models import Execution, ExecutionStatus
 
 
 class TestWorkerProcessJob:
@@ -148,4 +146,5 @@ class TestWorkerShutdown:
                 with patch("worker.worker.heartbeat", new_callable=AsyncMock):
                     # Should exit quickly without processing
                     import asyncio
+
                     await asyncio.wait_for(worker.run(), timeout=2.0)

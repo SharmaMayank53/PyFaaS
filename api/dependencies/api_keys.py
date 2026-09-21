@@ -1,8 +1,9 @@
-﻿"""API-key authentication helpers shared by invoke-style routes."""
+"""API-key authentication helpers shared by invoke-style routes."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException, status
@@ -37,7 +38,7 @@ async def get_api_key_principal(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid API key")
 
     key, user = row
-    key.last_used_at = datetime.now(timezone.utc)
+    key.last_used_at = datetime.now(UTC)
     return ApiKeyPrincipal(key=key, user=user)
 
 

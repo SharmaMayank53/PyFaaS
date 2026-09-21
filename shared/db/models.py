@@ -1,9 +1,10 @@
-﻿"""
+"""
 SOPM - SQLAlchemy ORM Models
 
 All tables defined here; never auto-created on startup.
 Use Alembic for all schema changes.
 """
+
 from __future__ import annotations
 
 import enum
@@ -12,6 +13,7 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
     Boolean,
     DateTime,
     Enum,
@@ -23,58 +25,64 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy import JSON
-from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from sqlalchemy.engine import Dialect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy.types import TypeDecorator, Text as SAText
+from sqlalchemy.types import Text as SAText
+from sqlalchemy.types import TypeDecorator, TypeEngine
 
 
-class JSONType(TypeDecorator):
+class JSONType(TypeDecorator[Any]):
     """
     Dialect-agnostic JSON column.
 
     Uses PostgreSQL JSONB in production; falls back to plain JSON
     (stored as text) in SQLite for testing.
     """
+
     impl = SAText
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
+    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[Any]:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(JSONB())
         return dialect.type_descriptor(JSON())
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self, value: Any, dialect: Dialect) -> Any:
         if dialect.name != "postgresql" and value is not None:
             import json
+
             return json.dumps(value)
         return value
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: Any, dialect: Dialect) -> Any:
         if dialect.name != "postgresql" and isinstance(value, str):
             import json
+
             return json.loads(value)
         return value
 
 
-class UUIDType(TypeDecorator):
+class UUIDType(TypeDecorator[Any]):
     """Dialect-agnostic UUID: native on PostgreSQL, TEXT on SQLite."""
+
     impl = SAText
     cache_ok = True
 
-    def load_dialect_impl(self, dialect):
+    def load_dialect_impl(self, dialect: Dialect) -> TypeEngine[Any]:
         if dialect.name == "postgresql":
             return dialect.type_descriptor(PG_UUID(as_uuid=True))
         return dialect.type_descriptor(SAText(36))
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(self, value: Any, dialect: Dialect) -> Any:
         if value is None:
             return None
         if dialect.name != "postgresql":
             return str(value)
         return value
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(self, value: Any, dialect: Dialect) -> Any:
         if value is None:
             return None
         if dialect.name != "postgresql":
@@ -84,6 +92,7 @@ class UUIDType(TypeDecorator):
 
 class Base(DeclarativeBase):
     """Shared base for all models."""
+
     type_annotation_map = {
         dict[str, Any]: JSONType,
     }
@@ -94,7 +103,7 @@ class Base(DeclarativeBase):
 # ---------------------------------------------------------------------------
 
 
-class ExecutionStatus(str, enum.Enum):
+class ExecutionStatus(str, enum.Enum):  # noqa: UP042 - Preserve existing enum string representations.
     PENDING = "PENDING"
     QUEUED = "QUEUED"
     RUNNING = "RUNNING"
@@ -104,13 +113,13 @@ class ExecutionStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
-class FunctionStatus(str, enum.Enum):
+class FunctionStatus(str, enum.Enum):  # noqa: UP042 - Preserve existing enum string representations.
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     DEPRECATED = "DEPRECATED"
 
 
-class ScheduleStatus(str, enum.Enum):
+class ScheduleStatus(str, enum.Enum):  # noqa: UP042 - Preserve existing enum string representations.
     ACTIVE = "ACTIVE"
     PAUSED = "PAUSED"
     DELETED = "DELETED"
@@ -122,7 +131,11 @@ class ScheduleStatus(str, enum.Enum):
 
 VALID_TRANSITIONS: dict[ExecutionStatus, set[ExecutionStatus]] = {
     ExecutionStatus.PENDING: {ExecutionStatus.QUEUED, ExecutionStatus.CANCELLED},
-    ExecutionStatus.QUEUED: {ExecutionStatus.RUNNING, ExecutionStatus.CANCELLED, ExecutionStatus.FAILED},
+    ExecutionStatus.QUEUED: {
+        ExecutionStatus.RUNNING,
+        ExecutionStatus.CANCELLED,
+        ExecutionStatus.FAILED,
+    },
     ExecutionStatus.RUNNING: {
         ExecutionStatus.COMPLETED,
         ExecutionStatus.FAILED,
@@ -171,9 +184,7 @@ class TimestampMixin:
 class User(TimestampMixin, Base):
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUIDType(), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUIDType(), primary_key=True, default=uuid.uuid4)
     username: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -181,11 +192,12 @@ class User(TimestampMixin, Base):
     is_superuser: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     functions: Mapped[list[Function]] = relationship(back_populates="owner", lazy="select")
-    api_keys: Mapped[list[ApiKey]] = relationship(back_populates="owner", cascade="all, delete-orphan", lazy="select")
+    api_keys: Mapped[list[ApiKey]] = relationship(
+        back_populates="owner", cascade="all, delete-orphan", lazy="select"
+    )
 
     def __repr__(self) -> str:
         return f"<User id={self.id} username={self.username}>"
-
 
 
 class ApiKey(TimestampMixin, Base):
@@ -202,12 +214,16 @@ class ApiKey(TimestampMixin, Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     owner: Mapped[User] = relationship(back_populates="api_keys")
-    executions: Mapped[list[Execution]] = relationship(foreign_keys="Execution.api_key_id", lazy="select")
+    executions: Mapped[list[Execution]] = relationship(
+        foreign_keys="Execution.api_key_id", lazy="select"
+    )
 
     __table_args__ = (Index("ix_api_key_owner_created", "owner_id", "created_at"),)
 
     def __repr__(self) -> str:
         return f"<ApiKey id={self.id} owner_id={self.owner_id}>"
+
+
 class Function(TimestampMixin, Base):
     __tablename__ = "functions"
 
@@ -262,7 +278,6 @@ class Function(TimestampMixin, Base):
         return f"<Function id={self.id} name={self.name}>"
 
 
-
 class VersionActivation(TimestampMixin, Base):
     __tablename__ = "version_activations"
 
@@ -285,12 +300,15 @@ class VersionActivation(TimestampMixin, Base):
     canary_percent: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     action: Mapped[str] = mapped_column(String(32), nullable=False, default="activate")
 
-    function: Mapped[Function] = relationship(back_populates="activations", foreign_keys=[function_id])
+    function: Mapped[Function] = relationship(
+        back_populates="activations", foreign_keys=[function_id]
+    )
 
     __table_args__ = (Index("ix_version_activation_function_created", "function_id", "created_at"),)
 
     def __repr__(self) -> str:
         return f"<VersionActivation id={self.id} action={self.action}>"
+
 
 class FunctionVersion(TimestampMixin, Base):
     __tablename__ = "function_versions"
@@ -335,7 +353,9 @@ class Execution(TimestampMixin, Base):
         UUIDType(), ForeignKey("functions.id", ondelete="SET NULL"), nullable=True
     )
     function_version_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUIDType(), ForeignKey("function_versions.id", ondelete="SET NULL"), nullable=True,
+        UUIDType(),
+        ForeignKey("function_versions.id", ondelete="SET NULL"),
+        nullable=True,
     )
     triggered_by: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType(), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
@@ -343,7 +363,9 @@ class Execution(TimestampMixin, Base):
     api_key_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType(), ForeignKey("api_keys.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    execution_type: Mapped[str] = mapped_column(String(32), nullable=False, default="function", index=True)
+    execution_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="function", index=True
+    )
     schedule_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType(), ForeignKey("schedules.id", ondelete="SET NULL"), nullable=True
     )
@@ -391,7 +413,10 @@ class ExecutionLog(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUIDType(), primary_key=True, default=uuid.uuid4)
     execution_id: Mapped[uuid.UUID] = mapped_column(
-        UUIDType(), ForeignKey("executions.id", ondelete="CASCADE"), nullable=False, index=True,
+        UUIDType(),
+        ForeignKey("executions.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     timestamp: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -403,9 +428,7 @@ class ExecutionLog(Base):
 
     execution: Mapped[Execution] = relationship(back_populates="logs")
 
-    __table_args__ = (
-        Index("ix_execution_log_execution_timestamp", "execution_id", "timestamp"),
-    )
+    __table_args__ = (Index("ix_execution_log_execution_timestamp", "execution_id", "timestamp"),)
 
     def __repr__(self) -> str:
         return f"<ExecutionLog id={self.id} level={self.level}>"
@@ -440,8 +463,3 @@ class Schedule(TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<Schedule id={self.id} cron={self.cron_expression}>"
-
-
-
-
-

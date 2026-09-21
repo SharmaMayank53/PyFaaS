@@ -3,10 +3,11 @@ PyFaaS - FastAPI Application
 
 Entry point for the API Gateway component.
 """
+
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request, status
@@ -79,16 +80,16 @@ def create_app() -> FastAPI:
     # ---------------------------------------------------------------------------
     # Routers
     # ---------------------------------------------------------------------------
-    PREFIX = "/api/v1"
-    app.include_router(health.router)          # /health, /ready, /metrics
-    app.include_router(auth.router, prefix=PREFIX)
-    app.include_router(functions.router, prefix=PREFIX)
-    app.include_router(executions.router, prefix=PREFIX)
-    app.include_router(schedules.router, prefix=PREFIX)
-    app.include_router(keys.router, prefix=PREFIX)
-    app.include_router(invoke.router, prefix=PREFIX)
-    app.include_router(ephemeral.router, prefix=PREFIX)
-    app.include_router(dashboard_router, prefix=PREFIX)
+    prefix = "/api/v1"
+    app.include_router(health.router)  # /health, /ready, /metrics
+    app.include_router(auth.router, prefix=prefix)
+    app.include_router(functions.router, prefix=prefix)
+    app.include_router(executions.router, prefix=prefix)
+    app.include_router(schedules.router, prefix=prefix)
+    app.include_router(keys.router, prefix=prefix)
+    app.include_router(invoke.router, prefix=prefix)
+    app.include_router(ephemeral.router, prefix=prefix)
+    app.include_router(dashboard_router, prefix=prefix)
     app.include_router(dashboard_router)
 
     # ---------------------------------------------------------------------------
@@ -125,5 +126,3 @@ if __name__ == "__main__":
         workers=settings.api_workers,
         log_config=None,  # structlog handles logging
     )
-
-
