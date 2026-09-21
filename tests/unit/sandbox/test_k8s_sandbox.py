@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from kubernetes.client.exceptions import ApiException
@@ -114,7 +115,7 @@ async def test_failed_job_classifies_oomkilled_as_memory_limit(sandbox_settings)
     state = SimpleNamespace(terminated=terminated)
     container_status = SimpleNamespace(state=state)
     pod = SimpleNamespace(status=SimpleNamespace(container_statuses=[container_status]))
-    sandbox._get_pods_for_job = lambda job_name: SimpleNamespace(items=[pod])
+    sandbox._get_pods_for_job = AsyncMock(return_value=SimpleNamespace(items=[pod]))
     job = SimpleNamespace(status=SimpleNamespace(conditions=[]))
 
     result = await sandbox._classify_failed_job("job", job, "allocating")

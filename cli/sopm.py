@@ -135,7 +135,9 @@ def should_ignore(rel: str, patterns: list[str]) -> bool:
 
 
 def zip_folder(path: Path) -> Path:
-    temp = Path(tempfile.mkstemp(prefix="sopm-deploy-", suffix=".zip")[1])
+    fd, filename = tempfile.mkstemp(prefix="sopm-deploy-", suffix=".zip")
+    os.close(fd)
+    temp = Path(filename)
     patterns = ignore_patterns(path)
     with zipfile.ZipFile(temp, "w", zipfile.ZIP_DEFLATED) as zf:
         for file in path.rglob("*"):

@@ -197,9 +197,13 @@ class TestHealthEndpoints:
         assert resp.status_code == 200
         assert resp.json()["status"] == "ok"
 
-    async def test_readiness_with_db(self, client: AsyncClient) -> None:
+    async def test_readiness_with_db(self, client: AsyncClient, db_session) -> None:
         # DB is in-memory SQLite; Redis mock may fail but that's degraded not unhealthy
-        with patch("api.routers.health.get_redis") as mock_redis_factory:
+        with (
+            patch("api.routers.health.get_redis") as mock_redis_factory,
+            patch("api.routers.health.AsyncSessionLocal") as session_factory,
+        ):
+            session_factory.return_value.__aenter__.return_value = db_session
             redis_mock = AsyncMock()
             redis_mock.ping = AsyncMock(return_value=True)
             redis_mock.aclose = AsyncMock()

@@ -232,10 +232,11 @@ class TestFunctionCRUD:
         )
         await db_session.commit()
 
-        resp = await client.delete(f"/api/v1/functions/{test_function.id}", headers=auth_headers)
+        function_id = test_function.id
+        resp = await client.delete(f"/api/v1/functions/{function_id}", headers=auth_headers)
         assert resp.status_code == 409
         assert (
-            await db_session.execute(select(Function).where(Function.id == test_function.id))
+            await db_session.execute(select(Function).where(Function.id == function_id))
         ).scalar_one_or_none() is not None
         mock_storage.delete_artifact.assert_not_called()
 
@@ -249,11 +250,11 @@ class TestFunctionCRUD:
         mock_storage,
     ) -> None:
         mock_storage.delete_artifact.side_effect = RuntimeError("minio unavailable")
-
-        resp = await client.delete(f"/api/v1/functions/{test_function.id}", headers=auth_headers)
+        function_id = test_function.id
+        resp = await client.delete(f"/api/v1/functions/{function_id}", headers=auth_headers)
         assert resp.status_code == 502
         assert (
-            await db_session.execute(select(Function).where(Function.id == test_function.id))
+            await db_session.execute(select(Function).where(Function.id == function_id))
         ).scalar_one_or_none() is not None
 
     async def test_unauthenticated(self, client: AsyncClient) -> None:
