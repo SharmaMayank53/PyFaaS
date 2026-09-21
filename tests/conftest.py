@@ -168,13 +168,19 @@ async def test_version(db_session: AsyncSession, test_function: Function) -> Fun
 
 @pytest.fixture
 def mock_redis():
-    with patch("shared.queue.redis_client.get_redis") as mock:
+    # Patch the router's imported binding too: otherwise tests enqueue real jobs
+    # when Redis is available in CI, but take the failure path on local machines.
+    with (
+        patch("shared.queue.redis_client.get_redis") as mock,
+        patch("api.routers.executions.get_redis") as execution_redis,
+    ):
         redis_mock = AsyncMock()
         redis_mock.zadd = AsyncMock(return_value=1)
         redis_mock.zcard = AsyncMock(return_value=0)
         redis_mock.ping = AsyncMock(return_value=True)
         redis_mock.aclose = AsyncMock()
         mock.return_value = redis_mock
+        execution_redis.return_value = redis_mock
         yield redis_mock
 
 

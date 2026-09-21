@@ -88,6 +88,8 @@ class TestFullFunctionLifecycle:
         assert exec_resp.status_code == 202
         execution_id = exec_resp.json()["id"]
         assert exec_resp.json()["function_id"] == function_id
+        assert exec_resp.json()["status"] == "QUEUED"
+        mock_redis.zadd.assert_awaited_once()
 
         # 6. Check execution history
         hist_resp = await client.get(
@@ -121,7 +123,16 @@ class TestFullFunctionLifecycle:
         assert vers_resp.status_code == 200
         assert vers_resp.json()["total"] == 1
 
-        # 10. Delete function
+        # 10. Queued executions prevent deletion. No worker runs in this test,
+        # so cancel the execution before deleting the function.
+        blocked = await client.delete(f"/api/v1/functions/{function_id}", headers=headers)
+        assert blocked.status_code == 409
+        cancelled = await client.delete(f"/api/v1/executions/{execution_id}", headers=headers)
+        assert cancelled.status_code == 204
+        execution = await client.get(f"/api/v1/executions/{execution_id}", headers=headers)
+        assert execution.json()["status"] == "CANCELLED"
+
+        # 11. Delete function
         del_resp = await client.delete(
             f"/api/v1/functions/{function_id}",
             headers=headers,

@@ -103,6 +103,8 @@ addopts = "--cov=. --cov-report=term-missing --cov-report=xml --cov-fail-under=8
 filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.coverage.run]
+# SQLAlchemy's async bridge switches greenlets; track these as well as threads.
+concurrency = ["thread", "greenlet"]
 omit = ["tests/*", "migrations/*", "*/conftest.py"]
 
 [tool.bandit]
