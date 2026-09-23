@@ -19,10 +19,10 @@ jobs:
     name: Lint (ruff + mypy)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -46,10 +46,10 @@ jobs:
     name: Security Scan (bandit)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -66,6 +66,9 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     services:
       postgres:
         image: postgres:16-alpine
@@ -76,7 +79,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U sopm -d sopm_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -102,10 +105,10 @@ jobs:
       SANDBOX_ENABLED: "false"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -123,10 +126,12 @@ jobs:
             -v
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7.1.1
         with:
-          file: ./coverage.xml
-          fail_ci_if_error: false
+          files: ./coverage.xml
+          disable_search: true
+          use_oidc: true
+          fail_ci_if_error: true
 
   # ===========================================================================
   # Docker Build + Trivy Scan
@@ -141,6 +146,7 @@ jobs:
       security-events: write
 
     strategy:
+      fail-fast: false
       matrix:
         component:
           - name: api
@@ -154,14 +160,14 @@ jobs:
             image: sopm-runner
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4.4.1
 
       - name: Log in to registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4.6.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -169,17 +175,17 @@ jobs:
 
       - name: Extract metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.component.image }}
           tags: |
-            type=sha,prefix=
+            type=sha,format=long,prefix=
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
 
       - name: Build image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7.4.0
         with:
           context: .
           file: ${{ matrix.component.dockerfile }}
@@ -193,38 +199,38 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Generate Trivy SARIF
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pyfaas-${{ matrix.component.name }}:ci-scan
           format: sarif
           output: trivy-${{ matrix.component.name }}.sarif
           severity: CRITICAL,HIGH
-          exit-code: "0"
+          limit-severities-for-sarif: true
+          exit-code: "1"
 
       - name: Upload Trivy SARIF
-        if: ${{ hashFiles(format('trivy-{0}.sarif', matrix.component.name)) != '' }}
+        if: ${{ always() && hashFiles(format('trivy-{0}.sarif', matrix.component.name)) != '' }}
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy-${{ matrix.component.name }}.sarif
 
       - name: Enforce Trivy vulnerability policy
-        uses: aquasecurity/trivy-action@master
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: pyfaas-${{ matrix.component.name }}:ci-scan
           format: table
           severity: CRITICAL,HIGH
-          ignore-unfixed: true
           exit-code: "1"
 
-      - name: Push image
-        if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ${{ matrix.component.dockerfile }}
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          cache-from: type=gha
+      - name: Push scanned image
+        if: ${{ github.event_name != 'pull_request' && success() }}
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            docker push "$tag"
+          done <<< "$IMAGE_TAGS"
 
   # ===========================================================================
   # Deploy to dev (on main push only)
@@ -237,10 +243,10 @@ jobs:
     environment: dev
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7.0.1
 
       - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v5.1.0
 
       - name: Configure kubeconfig
         run: |

@@ -55,6 +55,7 @@ dependencies = [
     "python-dotenv>=1.0.1",
     "aiofiles>=23.2.1",
     "anyio>=4.4.0",
+    "msgpack>=1.2.1",
 ]
 
 [project.optional-dependencies]
