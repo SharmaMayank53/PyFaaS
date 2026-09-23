@@ -66,9 +66,6 @@ jobs:
   test:
     name: Tests
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     services:
       postgres:
         image: postgres:16-alpine
@@ -125,13 +122,13 @@ jobs:
             --cov-fail-under=80 \
             -v
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v7.1.1
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v7.0.1
         with:
-          files: ./coverage.xml
-          disable_search: true
-          use_oidc: true
-          fail_ci_if_error: true
+          name: python-coverage
+          path: coverage.xml
+          if-no-files-found: error
+          retention-days: 14
 
   # ===========================================================================
   # Docker Build + Trivy Scan
