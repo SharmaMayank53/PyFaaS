@@ -202,6 +202,7 @@ jobs:
           format: sarif
           output: trivy-${{ matrix.component.name }}.sarif
           severity: CRITICAL,HIGH
+          trivyignores: .trivyignore.yaml
           limit-severities-for-sarif: true
           exit-code: "1"
 
@@ -218,6 +219,7 @@ jobs:
           image-ref: pyfaas-${{ matrix.component.name }}:ci-scan
           format: table
           severity: CRITICAL,HIGH
+          trivyignores: .trivyignore.yaml
           exit-code: "1"
 
       - name: Push scanned image

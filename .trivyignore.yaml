@@ -1,0 +1,25 @@
+vulnerabilities:
+  - id: CVE-2026-76642
+    expired_at: 2026-10-23
+    statement: Debian 13 has no fixed package; mount helpers are unused and containers lack CAP_SYS_ADMIN, run non-root, and cannot gain privileges. Recheck Debian security status before expiry.
+  - id: CVE-2026-78408
+    expired_at: 2026-10-23
+    statement: Debian 13 has no fixed package; nsenter is unused and containers run non-root with all capabilities dropped. Recheck Debian security status before expiry.
+  - id: CVE-2026-78409
+    expired_at: 2026-10-23
+    statement: Debian 13 has no fixed package; X-mount.subdir is unused and sandbox containers lack mount capabilities. Recheck Debian security status before expiry.
+  - id: CVE-2026-78410
+    expired_at: 2026-10-23
+    statement: Debian 13 has no fixed package; restricted bind-mount operations are unused and sandbox containers lack mount capabilities. Recheck Debian security status before expiry.
+  - id: CVE-2026-54369
+    expired_at: 2026-10-23
+    statement: Debian 13 has no fixed libacl package; ACL mutation is unused and containers run non-root without privilege escalation. Recheck Debian security status before expiry.
+  - id: CVE-2025-69720
+    expired_at: 2026-10-23
+    statement: Debian 13 has no fixed ncurses package; PyFaaS services have no terminal UI and the sandbox is non-root, seccomp-confined, and ephemeral. Recheck Debian security status before expiry.
+  - id: CVE-2026-16742
+    expired_at: 2026-10-23
+    statement: Debian 13 has no fixed systemd package; systemd-homed is not run in these containers and privilege escalation is disabled. Recheck Debian security status before expiry.
+  - id: CVE-2026-9538
+    expired_at: 2026-10-23
+    statement: Debian marks the Perl Archive::Tar fix deferred; PyFaaS does not invoke the Perl module and sandbox resource limits contain denial-of-service impact. Recheck Debian security status before expiry.
