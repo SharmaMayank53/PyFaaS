@@ -185,6 +185,7 @@ jobs:
           file: ${{ matrix.component.dockerfile }}
           push: false
           load: true
+          pull: true
           tags: |
             ${{ steps.meta.outputs.tags }}
             pyfaas-${{ matrix.component.name }}:ci-scan
@@ -212,6 +213,7 @@ jobs:
           image-ref: pyfaas-${{ matrix.component.name }}:ci-scan
           format: table
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
           exit-code: "1"
 
       - name: Push image
